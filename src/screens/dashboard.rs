@@ -1,34 +1,37 @@
 use iced::Element;
-use iced::widget::{column, text, button};
+use iced::widget::column;
 
-use super::types::Screen;
-use crate::app::AppMessage;
+use crate::components::navbar::{Navbar, NavbarMessage};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DashboardMessage {
-    None
+    // recieved
+    NavbarMessage(NavbarMessage),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Dashboard {}
+pub struct Dashboard {
+    navbar: Navbar,
+}
 
 impl Dashboard {
     pub fn new() -> Self {
-        Self {}
-    }
-
-    pub fn update(&mut self, message: DashboardMessage) -> () {
-        match message {
-            DashboardMessage::None => {}
+        Self {
+            navbar: Navbar::new(),
         }
     }
 
-    pub fn view(&self) -> Element<'_, AppMessage> {
-        column![
-            text("Dashboard Page").size(30),
+    pub fn update(&mut self, message: &DashboardMessage) -> () {
+        match message {
+            DashboardMessage::NavbarMessage(m) => {
+                self.navbar.update(m);
+            }
+        }
+    }
 
-            button("Go to Home")
-                .on_press(AppMessage::ChangeScreen(Screen::Home)),
+    pub fn view(&self) -> Element<'_, DashboardMessage> {
+        column![
+            self.navbar.view().map(|m| DashboardMessage::NavbarMessage(m))
         ]
         .spacing(10)
         .into()

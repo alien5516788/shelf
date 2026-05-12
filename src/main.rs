@@ -1,13 +1,13 @@
 pub mod app;
 pub mod screens;
-
-use iced::Theme;
+pub mod components;
 
 use app::App;
 
 fn main() -> iced::Result {
     iced::application(App::new, App::update, App::view)
-        .theme(Theme::Light)
+        .title("Shelf")
+        .theme(App::theme)
         .centered()
         .run()
 }
