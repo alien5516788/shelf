@@ -1,4 +1,4 @@
-use iced::{Element, Theme};
+use iced::{Element, Font, Theme};
 
 use crate::types::Component;
 use crate::screens::types::Screen;
@@ -15,6 +15,7 @@ pub enum AppMessage {
 #[derive(Debug, Clone, PartialEq)]
 pub struct App {
     theme: Theme,
+    font: Font,
     screen: Screen,
     home: Home,
     dashboard: Dashboard,
@@ -25,7 +26,8 @@ impl Component for App {
 
     fn new() -> Self {
         Self {
-            theme: Theme::Light,
+            theme: Theme::Dracula,
+            font: Font::MONOSPACE,
             screen: Screen::Home,
             home: Home::new(),
             dashboard: Dashboard::new(),
@@ -64,8 +66,8 @@ impl App {
 
     pub fn toggle_theme(&mut self) {
         match self.theme {
-            Theme::Light => self.theme = Theme::Dark,
-            Theme::Dark => self.theme = Theme::Light,
+            Theme::Light => self.theme = Theme::Dracula,
+            Theme::Dracula => self.theme = Theme::Light,
             _ => self.theme = Theme::Light,
         }
     }
