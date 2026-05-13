@@ -1,7 +1,9 @@
+pub mod types;
 pub mod app;
 pub mod screens;
 pub mod components;
 
+use types::Component;
 use app::App;
 
 fn main() -> iced::Result {

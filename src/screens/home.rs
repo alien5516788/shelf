@@ -3,7 +3,6 @@ use iced::widget::{column, text, button};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum HomeMessage {
-    // sent
     GotoDashboard,
 }
 
@@ -17,7 +16,7 @@ impl Home {
 
     pub fn update(&mut self, message: &HomeMessage) -> () {
         match message {
-            _ => {}
+            HomeMessage::GotoDashboard => {},
         }
     }
 

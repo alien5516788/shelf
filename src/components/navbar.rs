@@ -1,13 +1,13 @@
 use iced::widget::{button, container, row, text, text_input};
 use iced::{Alignment, Element, Length};
 
+use crate::types::Component;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum NavbarMessage {
-    // sent
     GotoHome,
     GotoSettings,
     ToggleDarkMode,
-    // sent, recieved
     SearchChanged(String),
 }
 
@@ -19,25 +19,29 @@ pub struct Navbar {
 
 const APP_NAME: &str = "Shelf";
 
-impl Navbar {
-    pub fn new() -> Self {
+impl Component for Navbar {
+    type Message = NavbarMessage;
+
+    fn new() -> Self {
         Self {
             search_query: String::new(),
             search_results: Vec::new(),
         }
     }
 
-    pub fn update(&mut self, message: &NavbarMessage) {
+    fn update(&mut self, message: NavbarMessage) {
         match message {
+            NavbarMessage::GotoHome => {},
+            NavbarMessage::GotoSettings => {},
+            NavbarMessage::ToggleDarkMode => {},
             NavbarMessage::SearchChanged(query) => {
-                self.search_query = query.clone();
-                self.search_results = Vec::from(["temp".to_string()]);
-            }
-            _ => {}
+                self.search_query = query;
+                self.search_results = self.search();
+            },
         }
     }
 
-    pub fn view(&self) -> Element<'_, NavbarMessage> {
+    fn view(&self) -> Element<'_, NavbarMessage> {
         row![
             // App name
             button(text(APP_NAME).size(24))
@@ -51,6 +55,7 @@ impl Navbar {
                     })
             )
             .width(Length::Fill)
+            .align_y(Alignment::Center)
             .padding(5),
 
             // Shortcuts
@@ -67,5 +72,12 @@ impl Navbar {
         .spacing(20)
         .padding(10)
         .into()
+    }
+}
+
+impl Navbar {
+    pub fn search(&self) -> Vec<String> {
+        // TODO: Search in database
+        Vec::from(["temp".to_string()])
     }
 }
