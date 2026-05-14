@@ -1,7 +1,7 @@
 use iced::widget::{button, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
 
-use crate::types::Component;
+use crate::ui::types::Component;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NavbarMessage {

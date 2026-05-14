@@ -1,10 +1,11 @@
 use iced::{Element, Font, Theme};
 
-use crate::types::Component;
-use crate::screens::types::Screen;
-use crate::screens::home::{Home, HomeMessage};
-use crate::screens::dashboard::{Dashboard, DashboardMessage};
-use crate::components::navbar::NavbarMessage;
+use super::types::Component;
+use super::types::Screen;
+use super::home::{Home, HomeMessage};
+use super::dashboard::{Dashboard, DashboardMessage};
+use super::dashboard::components::NavbarMessage;
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppMessage {

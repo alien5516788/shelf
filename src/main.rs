@@ -1,12 +1,9 @@
-pub mod types;
-pub mod app;
-pub mod screens;
-pub mod components;
+pub mod ui;
 
 use iced::Font;
 
-use types::Component;
-use app::App;
+use ui::types::Component;
+use ui::app::App;
 
 fn main() -> iced::Result {
     iced::application(App::new, App::update, App::view)

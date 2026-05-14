@@ -1,6 +1,8 @@
 use iced::Element;
 use iced::widget::{column, text, button};
 
+use crate::ui::types::Component;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum HomeMessage {
     GotoDashboard,
@@ -9,18 +11,20 @@ pub enum HomeMessage {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Home {}
 
-impl Home {
-    pub fn new() -> Self {
+impl Component for Home {
+    type Message = HomeMessage;
+
+    fn new() -> Self {
         Self {}
     }
 
-    pub fn update(&mut self, message: &HomeMessage) -> () {
+    fn update(&mut self, message: HomeMessage) -> () {
         match message {
             HomeMessage::GotoDashboard => {},
         }
     }
 
-    pub fn view(&self) -> Element<'_, HomeMessage> {
+    fn view(&self) -> Element<'_, HomeMessage> {
         column![
             text("Home Page").size(30),
 

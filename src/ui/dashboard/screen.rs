@@ -1,8 +1,8 @@
 use iced::Element;
 use iced::widget::column;
 
-use crate::types::Component;
-use crate::components::navbar::{Navbar, NavbarMessage};
+use crate::ui::types::Component;
+use super::components::{Navbar, NavbarMessage};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DashboardMessage {
