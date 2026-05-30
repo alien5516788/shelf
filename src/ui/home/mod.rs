@@ -1,3 +1,3 @@
-pub mod screen;
+pub mod home;
 
-pub use screen::{Home, HomeMessage};
+pub use home::{Home, HomeMessage};

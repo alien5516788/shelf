@@ -1,63 +1,76 @@
 use iced::{Element, Font, Theme};
 
-use super::types::Component;
-use super::types::Screen;
 use super::home::{Home, HomeMessage};
 use super::dashboard::{Dashboard, DashboardMessage};
-use super::dashboard::components::NavbarMessage;
 
+/*
+ * App is the global entity that holds the state of the entire application
+ */
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum AppMessage {
-    HomeMessage(HomeMessage),
-    DashboardMessage(DashboardMessage),
-}
+ // App message
+ #[derive(Debug, Clone, PartialEq)]
+ pub enum AppMessage {
+     HomeMessage(HomeMessage),
+     DashboardMessage(DashboardMessage),
+ }
 
+// App state
 #[derive(Debug, Clone, PartialEq)]
 pub struct App {
     theme: Theme,
     font: Font,
     screen: Screen,
+
     home: Home,
     dashboard: Dashboard,
 }
 
-impl Component for App {
-    type Message = AppMessage;
+#[derive(Debug, Clone, PartialEq)]
+pub enum Screen {
+    Home,
+    Dashboard,
+    Settings,
+}
 
-    fn new() -> Self {
+impl App {
+    pub fn new() -> Self {
         Self {
             theme: Theme::Dracula,
             font: Font::MONOSPACE,
             screen: Screen::Home,
+
             home: Home::new(),
             dashboard: Dashboard::new(),
         }
     }
 
-    fn update(&mut self, message: AppMessage) -> () {
+    pub fn view(&self) -> Element<'_, AppMessage> {
+        match self.screen {
+            Screen::Home => self.home.view(),
+            Screen::Dashboard => self.dashboard.view(),
+            Screen::Settings => self.dashboard.view(), // temp
+        }
+    }
 
+    pub fn update(&mut self, message: AppMessage) -> () {
         match message {
             AppMessage::HomeMessage(home_m) => match home_m {
                 HomeMessage::GotoDashboard => self.screen = Screen::Dashboard,
             },
-            AppMessage::DashboardMessage(dashboard_m) => match &dashboard_m {
-                DashboardMessage::NavbarMessage(navbar_m) => match navbar_m {
-                    NavbarMessage::GotoHome => self.screen = Screen::Home,
-                    NavbarMessage::GotoSettings => /* self.screen = Screen::Settings */ {},
-                    NavbarMessage::ToggleDarkMode => self.toggle_theme(),
-                    _ => self.dashboard.update(dashboard_m),
+            AppMessage::DashboardMessage(dashboard_m) => match dashboard_m {
+                DashboardMessage::GotoHome => self.screen = Screen::Home,
+                DashboardMessage::GotoSettings => self.screen = Screen::Settings,
+                DashboardMessage::ToggleDarkMode => self.toggle_theme(),
+                DashboardMessage::SearchChanged(query) => {
+                    let navbar = &mut self.dashboard.navbar;
+                    navbar.search_query = query;
+                    navbar.search_results = navbar.search();
                 }
-            },
+            }
         }
     }
 
-    fn view(&self) -> Element<'_, AppMessage> {
-        match self.screen {
-            Screen::Home => self.home.view().map(|m| AppMessage::HomeMessage(m)),
-            Screen::Dashboard => self.dashboard.view().map(|m| AppMessage::DashboardMessage(m)),
-        }
-    }
+
 }
 
 impl App {

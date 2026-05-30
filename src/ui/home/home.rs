@@ -1,35 +1,29 @@
 use iced::Element;
 use iced::widget::{column, text, button};
 
-use crate::ui::types::Component;
+use crate::ui::app::AppMessage;
 
+// Home messages
 #[derive(Debug, Clone, PartialEq)]
 pub enum HomeMessage {
     GotoDashboard,
 }
 
+// Home state
 #[derive(Debug, Clone, PartialEq)]
 pub struct Home {}
 
-impl Component for Home {
-    type Message = HomeMessage;
-
-    fn new() -> Self {
+impl Home {
+    pub fn new() -> Self {
         Self {}
     }
 
-    fn update(&mut self, message: HomeMessage) -> () {
-        match message {
-            HomeMessage::GotoDashboard => {},
-        }
-    }
-
-    fn view(&self) -> Element<'_, HomeMessage> {
+    pub fn view(&self) -> Element<'_, AppMessage> {
         column![
             text("Home Page").size(30),
 
             button("Go to Dashboard")
-                .on_press(HomeMessage::GotoDashboard),
+                .on_press(AppMessage::HomeMessage(HomeMessage::GotoDashboard)),
         ]
         .spacing(10)
         .into()

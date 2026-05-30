@@ -1,47 +1,27 @@
 use iced::widget::{button, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
 
-use crate::ui::types::Component;
+use crate::ui::app::AppMessage;
+use super::DashboardMessage;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum NavbarMessage {
-    GotoHome,
-    GotoSettings,
-    ToggleDarkMode,
-    SearchChanged(String),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Navbar {
-    search_query: String,
-    search_results: Vec<String>,
-}
 
 const APP_NAME: &str = "Shelf";
 
-impl Component for Navbar {
-    type Message = NavbarMessage;
+#[derive(Debug, Clone, PartialEq)]
+pub struct Navbar {
+    pub search_query: String,
+    pub search_results: Vec<String>,
+}
 
-    fn new() -> Self {
+impl Navbar {
+    pub fn new() -> Self {
         Self {
             search_query: String::new(),
             search_results: Vec::new(),
         }
     }
 
-    fn update(&mut self, message: NavbarMessage) {
-        match message {
-            NavbarMessage::GotoHome => {},
-            NavbarMessage::GotoSettings => {},
-            NavbarMessage::ToggleDarkMode => {},
-            NavbarMessage::SearchChanged(query) => {
-                self.search_query = query;
-                self.search_results = self.search();
-            },
-        }
-    }
-
-    fn view(&self) -> Element<'_, NavbarMessage> {
+    pub fn view(&self) -> Element<'_, AppMessage> {
         container(
             row![
                 // App name
@@ -58,12 +38,12 @@ impl Component for Navbar {
                         }
                     })
                     .padding(0)
-                    .on_press(NavbarMessage::GotoHome),
+                    .on_press(AppMessage::DashboardMessage(DashboardMessage::GotoHome)),
 
                 // Search bar
                 container(
                     text_input("Search...", &self.search_query)
-                        .on_input(NavbarMessage::SearchChanged)
+                        .on_input(|s| AppMessage::DashboardMessage(DashboardMessage::SearchChanged(s)))
                 )
                 .width(Length::Fill)
                 .align_y(Alignment::Center)
@@ -72,9 +52,9 @@ impl Component for Navbar {
                 // Shortcuts
                 row![
                     button("⚙ Settings")
-                        .on_press(NavbarMessage::GotoSettings),
+                        .on_press(AppMessage::DashboardMessage(DashboardMessage::GotoSettings)),
                     button("☀ Dark Mode")
-                        .on_press(NavbarMessage::ToggleDarkMode),
+                        .on_press(AppMessage::DashboardMessage(DashboardMessage::ToggleDarkMode)),
                 ]
                 .spacing(10),
             ]

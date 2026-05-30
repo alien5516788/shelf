@@ -1,4 +1,8 @@
-pub mod screen;
-pub mod components;
+pub mod dashboard;
+pub mod navbar;
+pub mod groups;
 
-pub use screen::{Dashboard, DashboardMessage};
+pub use dashboard::{Dashboard, DashboardMessage};
+pub use navbar::Navbar;
+pub use groups::Groups;
+

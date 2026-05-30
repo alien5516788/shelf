@@ -2,7 +2,6 @@ pub mod ui;
 
 use iced::Font;
 
-use ui::types::Component;
 use ui::app::App;
 
 fn main() -> iced::Result {
