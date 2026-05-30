@@ -25,7 +25,6 @@ impl Dashboard {
             self.navbar.view(),
             self.groups.view(),
         ]
-        .spacing(10)
         .into()
     }
 }

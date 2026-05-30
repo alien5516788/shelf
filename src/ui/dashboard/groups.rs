@@ -1,6 +1,7 @@
-use iced::widget::{Column, button, container, row, text};
-use iced::Element;
+use iced::widget::{Column, Space, button, column, container, row, text};
+use iced::{Alignment, Background, Border, Color, Element, Length};
 
+use crate::icon;
 use super::DashboardMessage;
 
 
@@ -59,12 +60,61 @@ impl Groups {
     }
 
     pub fn view(&self) -> Element<'_, DashboardMessage> {
-        let groups = self.group_list.iter().fold(
-            Column::new(),
-            |column, group| column.push(GroupCard::view(group.group_name.clone(), group.item_count)),
-        );
+        container(column![
+            // Collapse side bar
+            button(
+                icon::menu()
+                    .color(Color::from_rgb(0.3, 0.4, 0.6))
+            )
+            .style(|_, _| button::Style {
+                background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.0))),
+                ..Default::default()
+            }),
 
-        container(groups).into()
+            Space::new()
+                .height(Length::Fixed(20.0)),
+
+            // Add a new group
+            button(
+                container(
+                    row![
+                        icon::plus()
+                            .color(Color::from_rgb(0.3, 0.9, 0.4)),
+                        text("New Group")
+                            .color(Color::from_rgb(0.3, 0.9, 0.4))
+                    ]
+                    .spacing(10)
+                )
+                .align_x(Alignment::Center)
+            )
+            .width(200)
+            .style(|_, _| button::Style {
+                background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.0))),
+                border: Border {
+                    color: Color::from_rgb(0.3, 0.9, 0.4),
+                    width: 2.0,
+                    radius: 4.into(),
+                },
+                ..Default::default()
+            }),
+
+            // Group list
+            self.group_list.iter().fold(
+                Column::new(),
+                |column, group| column.push(GroupCard::view(group.group_name.clone(), group.item_count)),
+            ),
+        ])
+        .height(Length::Fill)
+        .padding(4)
+        .style(|_| container::Style {
+            border: Border {
+                color: Color::from_rgb(0.4, 0.4, 0.4),
+                width: 1.0,
+                radius: 0.0.into(),
+            },
+            ..Default::default()
+        })
+        .into()
     }
 }
 
@@ -82,7 +132,7 @@ impl GroupCard {
 
         row![
             button(text(group_name)),
-            text(format!("{} items", item_count)),
+            text(item_count),
         ].into()
     }
 }

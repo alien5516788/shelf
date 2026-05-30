@@ -61,11 +61,10 @@ impl Navbar {
             .spacing(20)
             .padding(10)
         )
-        .padding(0)
         .style(|theme: &Theme| container::Style {
             border: Border {
                 color: Color::from_rgb(0.4, 0.4, 0.45),
-                width: 2.0,
+                width: 1.0,
                 radius: 0.0.into(),
             },
             background: Some(iced::Background::Color(theme.palette().background)),

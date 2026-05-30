@@ -30,7 +30,7 @@ impl App {
         Self {
             theme: Theme::Dracula,
             font: Font::MONOSPACE,
-            screen: Screen::Home,
+            screen: Screen::Dashboard,
 
             home: Home::new(),
             dashboard: Dashboard::new(),
