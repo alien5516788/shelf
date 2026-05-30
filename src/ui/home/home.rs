@@ -10,7 +10,7 @@ pub enum HomeMessage {
 }
 
 // Home state
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Home {}
 
 impl Home {

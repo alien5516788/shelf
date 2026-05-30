@@ -15,7 +15,7 @@ use super::dashboard::{Dashboard, DashboardMessage};
  }
 
 // App state
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct App {
     theme: Theme,
     font: Font,
@@ -25,7 +25,7 @@ pub struct App {
     dashboard: Dashboard,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Screen {
     Home,
     Dashboard,

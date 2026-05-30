@@ -5,10 +5,9 @@ use crate::ui::app::AppMessage;
 use super::DashboardMessage;
 
 
-const APP_NAME: &str = "Shelf";
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Navbar {
+    app_name: &'static str,
     pub search_query: String,
     pub search_results: Vec<String>,
 }
@@ -16,8 +15,9 @@ pub struct Navbar {
 impl Navbar {
     pub fn new() -> Self {
         Self {
+            app_name: "Shelf",
             search_query: String::new(),
-            search_results: Vec::new(),
+            search_results: Vec::<String>::new(),
         }
     }
 
@@ -25,7 +25,7 @@ impl Navbar {
         container(
             row![
                 // App name
-                button(text(APP_NAME).size(24))
+                button(text(self.app_name).size(24))
                     .style(|theme: &Theme, status: button::Status| {
                         button::Style {
                             background: None,

@@ -15,7 +15,7 @@ pub enum DashboardMessage {
 }
 
 // Dashboard state
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Dashboard {
     pub navbar: Navbar,
     pub groups: Groups,

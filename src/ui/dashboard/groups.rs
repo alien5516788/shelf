@@ -4,7 +4,7 @@ use iced::Element;
 use crate::ui::app::AppMessage;
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Groups {
     group_list: Vec<Group>,
     pub search_query: String,
@@ -18,7 +18,7 @@ enum GroupName {
     Custom(String)
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 struct Group {
     group_id: String,
     group_name: GroupName,
