@@ -1,5 +1,6 @@
 use iced::{Element, Font, Theme};
 
+use super::AppMessage;
 use super::home::{Home, HomeMessage};
 use super::dashboard::{Dashboard, DashboardMessage};
 
@@ -7,14 +8,6 @@ use super::dashboard::{Dashboard, DashboardMessage};
  * App is the global entity that holds the state of the entire application
  */
 
- // App message
- #[derive(Debug, Clone, PartialEq)]
- pub enum AppMessage {
-     HomeMessage(HomeMessage),
-     DashboardMessage(DashboardMessage),
- }
-
-// App state
 #[derive(Debug, PartialEq)]
 pub struct App {
     theme: Theme,
@@ -46,9 +39,9 @@ impl App {
 
     pub fn view(&self) -> Element<'_, AppMessage> {
         match self.screen {
-            Screen::Home => self.home.view(),
-            Screen::Dashboard => self.dashboard.view(),
-            Screen::Settings => self.dashboard.view(), // temp
+            Screen::Home => self.home.view().map(|m| AppMessage::HomeMessage(m)),
+            Screen::Dashboard => self.dashboard.view().map(|m| AppMessage::DashboardMessage(m)),
+            Screen::Settings => self.dashboard.view().map(|m| AppMessage::DashboardMessage(m)), // TODO: implement settings
         }
     }
 

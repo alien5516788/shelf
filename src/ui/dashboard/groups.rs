@@ -1,7 +1,7 @@
 use iced::widget::{Column, button, container, row, text};
 use iced::Element;
 
-use crate::ui::app::AppMessage;
+use super::DashboardMessage;
 
 
 #[derive(Debug, PartialEq)]
@@ -58,7 +58,7 @@ impl Groups {
         }
     }
 
-    pub fn view(&self) -> Element<'_, AppMessage> {
+    pub fn view(&self) -> Element<'_, DashboardMessage> {
         let groups = self.group_list.iter().fold(
             Column::new(),
             |column, group| column.push(GroupCard::view(group.group_name.clone(), group.item_count)),
@@ -72,7 +72,7 @@ impl Groups {
 struct GroupCard;
 
 impl GroupCard {
-    fn view(group_name: GroupName, item_count: usize) -> Element<'static, AppMessage> {
+    fn view(group_name: GroupName, item_count: usize) -> Element<'static, DashboardMessage> {
         // Convert group name to string
         let group_name = match group_name {
             GroupName::Favorite => "Favorite".to_string(),

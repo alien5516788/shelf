@@ -1,20 +1,11 @@
 use iced::Element;
 use iced::widget::column;
 
-use crate::ui::app::AppMessage;
+use super::DashboardMessage;
 use super::Navbar;
 use super::Groups;
 
-// Dashboard message
-#[derive(Debug, Clone, PartialEq)]
-pub enum DashboardMessage {
-    GotoHome,
-    GotoSettings,
-    ToggleDarkMode,
-    SearchChanged(String),
-}
 
-// Dashboard state
 #[derive(Debug, PartialEq)]
 pub struct Dashboard {
     pub navbar: Navbar,
@@ -29,7 +20,7 @@ impl Dashboard {
         }
     }
 
-    pub fn view(&self) -> Element<'_, AppMessage> {
+    pub fn view(&self) -> Element<'_, DashboardMessage> {
         column![
             self.navbar.view(),
             self.groups.view(),

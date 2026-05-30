@@ -1,7 +1,6 @@
 use iced::widget::{button, container, row, text, text_input};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
 
-use crate::ui::app::AppMessage;
 use super::DashboardMessage;
 
 
@@ -21,7 +20,7 @@ impl Navbar {
         }
     }
 
-    pub fn view(&self) -> Element<'_, AppMessage> {
+    pub fn view(&self) -> Element<'_, DashboardMessage> {
         container(
             row![
                 // App name
@@ -38,12 +37,12 @@ impl Navbar {
                         }
                     })
                     .padding(0)
-                    .on_press(AppMessage::DashboardMessage(DashboardMessage::GotoHome)),
+                    .on_press(DashboardMessage::GotoHome),
 
                 // Search bar
                 container(
                     text_input("Search...", &self.search_query)
-                        .on_input(|s| AppMessage::DashboardMessage(DashboardMessage::SearchChanged(s)))
+                        .on_input(|s| DashboardMessage::SearchChanged(s))
                 )
                 .width(Length::Fill)
                 .align_y(Alignment::Center)
@@ -52,9 +51,9 @@ impl Navbar {
                 // Shortcuts
                 row![
                     button("⚙ Settings")
-                        .on_press(AppMessage::DashboardMessage(DashboardMessage::GotoSettings)),
+                        .on_press(DashboardMessage::GotoSettings),
                     button("☀ Dark Mode")
-                        .on_press(AppMessage::DashboardMessage(DashboardMessage::ToggleDarkMode)),
+                        .on_press(DashboardMessage::ToggleDarkMode),
                 ]
                 .spacing(10),
             ]

@@ -1,3 +1,8 @@
 pub mod home;
 
-pub use home::{Home, HomeMessage};
+pub use home::Home;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum HomeMessage {
+    GotoDashboard,
+}
