@@ -3,3 +3,6 @@ module = "icon"
 [icons]
 plus = "plus"
 menu = "menu"
+history = "history"
+star = "star"
+group_box = "box"

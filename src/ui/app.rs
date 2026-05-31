@@ -7,7 +7,6 @@ use super::dashboard::{Dashboard, DashboardMessage};
 /*
  * App is the global entity that holds the state of the entire application
  */
-
 #[derive(Debug, PartialEq)]
 pub struct App {
     theme: Theme,
@@ -63,14 +62,12 @@ impl App {
         }
     }
 
-
-}
-
-impl App {
     pub fn theme(&self) -> Theme {
         self.theme.clone()
     }
+}
 
+impl App {
     pub fn toggle_theme(&mut self) {
         match self.theme {
             Theme::Light => self.theme = Theme::Dracula,

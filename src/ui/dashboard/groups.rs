@@ -12,42 +12,34 @@ pub struct Groups {
     pub search_results: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-enum GroupName {
-    Favorite,
-    Recent,
-    Custom(String)
-}
-
 #[derive(Debug, PartialEq)]
 struct Group {
     group_id: String,
-    group_name: GroupName,
+    group_name: String,
     item_count: usize,
 }
-
 
 impl Groups {
     pub fn new() -> Self {
         let group_list: Vec<Group> = Vec::from([
             Group {
                 group_id: "favorite".to_string(),
-                group_name: GroupName::Favorite,
+                group_name: "Favorite".to_string(),
                 item_count: 0,
             },
             Group {
                 group_id: "recent".to_string(),
-                group_name: GroupName::Recent,
+                group_name: "Recent".to_string(),
                 item_count: 2,
             },
             Group {
-                group_id: "custom".to_string(),
-                group_name: GroupName::Custom("Custom".to_string()),
+                group_id: "cus2346245723tom".to_string(),
+                group_name: "Custom 1".to_string(),
                 item_count: 0,
             },
             Group {
-                group_id: "custom2".to_string(),
-                group_name: GroupName::Custom("Custom".to_string()),
+                group_id: "custo2342662m2".to_string(),
+                group_name: "Custom 2".to_string(),
                 item_count: 5,
             },
         ]);
@@ -60,52 +52,59 @@ impl Groups {
     }
 
     pub fn view(&self) -> Element<'_, DashboardMessage> {
-        container(column![
-            // Collapse side bar
-            button(
-                icon::menu()
-                    .color(Color::from_rgb(0.3, 0.4, 0.6))
-            )
-            .style(|_, _| button::Style {
-                background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.0))),
-                ..Default::default()
-            }),
-
-            Space::new()
-                .height(Length::Fixed(20.0)),
-
-            // Add a new group
-            button(
-                container(
-                    row![
-                        icon::plus()
-                            .color(Color::from_rgb(0.3, 0.9, 0.4)),
-                        text("New Group")
-                            .color(Color::from_rgb(0.3, 0.9, 0.4))
-                    ]
-                    .spacing(10)
+        container(
+            column![
+                // Collapse side bar
+                button(
+                    icon::menu()
+                        .size(20.0)
+                        .color(Color::from_rgb(0.3, 0.4, 0.6))
                 )
-                .align_x(Alignment::Center)
-            )
-            .width(200)
-            .style(|_, _| button::Style {
-                background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.0))),
-                border: Border {
-                    color: Color::from_rgb(0.3, 0.9, 0.4),
-                    width: 2.0,
-                    radius: 4.into(),
-                },
-                ..Default::default()
-            }),
+                .style(|_, _| button::Style {
+                    background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.0))),
+                    ..Default::default()
+                }),
 
-            // Group list
-            self.group_list.iter().fold(
-                Column::new(),
-                |column, group| column.push(GroupCard::view(group.group_name.clone(), group.item_count)),
-            ),
-        ])
+                Space::new()
+                    .height(Length::Fixed(20.0)),
+
+                // Add a new group
+                button(
+                    container(
+                        row![
+                            icon::plus()
+                                .color(Color::from_rgb(0.3, 0.9, 0.4)),
+                            text("New Group")
+                                .color(Color::from_rgb(0.3, 0.9, 0.4))
+                        ]
+                        .spacing(10)
+                    )
+                    .align_x(Alignment::Center)
+                )
+                .padding(8)
+                .width(220)
+                .style(|_, _| button::Style {
+                    background: None,
+                    border: Border {
+                        color: Color::from_rgb(0.3, 0.9, 0.4),
+                        width: 2.0,
+                        radius: 4.into(),
+                    },
+                    ..Default::default()
+                }),
+
+                Space::new()
+                    .height(Length::Fixed(20.0)),
+
+                // Group list
+                self.group_list.iter().fold(
+                    Column::new().spacing(10),
+                    |column, group| column.push(GroupCard::view(group.group_name.clone(), group.item_count)),
+                ),
+            ]
+        )
         .height(Length::Fill)
-        .padding(4)
+        .padding(10)
         .style(|_| container::Style {
             border: Border {
                 color: Color::from_rgb(0.4, 0.4, 0.4),
@@ -122,17 +121,51 @@ impl Groups {
 struct GroupCard;
 
 impl GroupCard {
-    fn view(group_name: GroupName, item_count: usize) -> Element<'static, DashboardMessage> {
-        // Convert group name to string
-        let group_name = match group_name {
-            GroupName::Favorite => "Favorite".to_string(),
-            GroupName::Recent => "Recent".to_string(),
-            GroupName::Custom(name) => name,
-        };
-
-        row![
-            button(text(group_name)),
-            text(item_count),
-        ].into()
+    fn view(group_name: String, item_count: usize) -> Element<'static, DashboardMessage> {
+        button(
+            row![
+                // Card icon
+                match group_name.as_str() {
+                    "Favorite" => icon::star()
+                        .size(20.0)
+                        .color(Color::from_rgb(0.5, 0.9, 0.9)),
+                    "Recent" => icon::history()
+                        .size(20.0)
+                        .color(Color::from_rgb(0.5, 0.9, 0.9)),
+                    _ => icon::group_box()
+                        .size(20.0)
+                        .color(Color::from_rgb(1.0, 0.7, 0.4)),
+                },
+                Space::new()
+                    .width(Length::Fixed(10.0)),
+                
+                // Card title
+                text(group_name)
+                    .style(|_| text::Style {
+                        color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
+                        ..Default::default()
+                    }),
+                Space::new()
+                    .width(Length::Fill),
+                
+                // Card item count
+                text(item_count)
+                    .style(|_| text::Style {
+                        color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
+                        ..Default::default()
+                    }),
+            ]
+        )
+        .on_press(DashboardMessage::ToggleDarkMode)
+        .padding(8)
+        .width(220)
+        .style(|_, status| button::Style {
+            background: match status {
+                button::Status::Hovered => Some(Background::Color(Color::from_rgb(0.2, 0.2, 0.3))),
+                _ => None,
+            },
+            ..Default::default()
+        })
+        .into()
     }
 }
