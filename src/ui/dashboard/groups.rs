@@ -7,13 +7,13 @@ use super::DashboardMessage;
 
 #[derive(Debug, PartialEq)]
 pub struct Groups {
-    group_list: Vec<Group>,
+    group_list: Vec<GroupInfo>,
     pub search_query: String,
     pub search_results: Vec<String>,
 }
 
 #[derive(Debug, PartialEq)]
-struct Group {
+struct GroupInfo {
     group_id: String,
     group_name: String,
     item_count: usize,
@@ -21,31 +21,29 @@ struct Group {
 
 impl Groups {
     pub fn new() -> Self {
-        let group_list: Vec<Group> = Vec::from([
-            Group {
-                group_id: "favorite".to_string(),
-                group_name: "Favorite".to_string(),
-                item_count: 0,
-            },
-            Group {
-                group_id: "recent".to_string(),
-                group_name: "Recent".to_string(),
-                item_count: 2,
-            },
-            Group {
-                group_id: "cus2346245723tom".to_string(),
-                group_name: "Custom 1".to_string(),
-                item_count: 0,
-            },
-            Group {
-                group_id: "custo2342662m2".to_string(),
-                group_name: "Custom 2".to_string(),
-                item_count: 5,
-            },
-        ]);
-
         Self {
-            group_list: group_list,
+            group_list: Vec::from([
+                GroupInfo {
+                    group_id: "favorite".to_string(),
+                    group_name: "Favorite".to_string(),
+                    item_count: 0,
+                },
+                GroupInfo {
+                    group_id: "recent".to_string(),
+                    group_name: "Recent".to_string(),
+                    item_count: 2,
+                },
+                GroupInfo {
+                    group_id: "cus2346245723tom".to_string(),
+                    group_name: "Custom 1".to_string(),
+                    item_count: 0,
+                },
+                GroupInfo {
+                    group_id: "custo2342662m2".to_string(),
+                    group_name: "Custom 2".to_string(),
+                    item_count: 5,
+                },
+            ]),
             search_query: String::new(),
             search_results: Vec::new(),
         }
@@ -99,7 +97,7 @@ impl Groups {
                 // Group list
                 self.group_list.iter().fold(
                     Column::new().spacing(10),
-                    |column, group| column.push(GroupCard::view(group.group_name.clone(), group.item_count)),
+                    |column, group| column.push(GroupCard::view(group.group_name.clone(), group.item_count, self.group_icon(&group.group_name))),
                 ),
             ]
         )
@@ -117,28 +115,40 @@ impl Groups {
     }
 }
 
+impl Groups {
+    fn group_icon(&self, group_name: &String) -> Element<'static, DashboardMessage> {
+        let icon = match group_name.as_str() {
+            "Favorite" => icon::star()
+                .size(20.0)
+                .color(Color::from_rgb(0.5, 0.9, 0.9)),
+            "Recent" => icon::history()
+                .size(20.0)
+                .color(Color::from_rgb(0.5, 0.9, 0.9)),
+            _ => icon::group_box()
+                .size(20.0)
+                .color(Color::from_rgb(1.0, 0.7, 0.4)),
+        };
+
+        icon.into()
+    }
+}
+
+
+
+
+
 
 struct GroupCard;
 
 impl GroupCard {
-    fn view(group_name: String, item_count: usize) -> Element<'static, DashboardMessage> {
+    fn view(group_name: String, item_count: usize, icon: Element<'static, DashboardMessage>) -> Element<'static, DashboardMessage> {
         button(
             row![
                 // Card icon
-                match group_name.as_str() {
-                    "Favorite" => icon::star()
-                        .size(20.0)
-                        .color(Color::from_rgb(0.5, 0.9, 0.9)),
-                    "Recent" => icon::history()
-                        .size(20.0)
-                        .color(Color::from_rgb(0.5, 0.9, 0.9)),
-                    _ => icon::group_box()
-                        .size(20.0)
-                        .color(Color::from_rgb(1.0, 0.7, 0.4)),
-                },
+                icon,
                 Space::new()
                     .width(Length::Fixed(10.0)),
-                
+
                 // Card title
                 text(group_name)
                     .style(|_| text::Style {
@@ -147,7 +157,7 @@ impl GroupCard {
                     }),
                 Space::new()
                     .width(Length::Fill),
-                
+
                 // Card item count
                 text(item_count)
                     .style(|_| text::Style {

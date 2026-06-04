@@ -1,14 +1,17 @@
 use iced::{Element, Font, Theme};
 
-use super::AppMessage;
 use super::home::{Home, HomeMessage};
 use super::dashboard::{Dashboard, DashboardMessage};
 
+
 /*
- * App is the global entity that holds the state of the entire application
+ * App state, message and view are divided into modules except app update
  */
+
+// App state
 #[derive(Debug, PartialEq)]
 pub struct App {
+    title: String,
     theme: Theme,
     font: Font,
     screen: Screen,
@@ -24,9 +27,17 @@ pub enum Screen {
     Settings,
 }
 
+// App message
+#[derive(Debug, Clone, PartialEq)]
+pub enum AppMessage {
+    HomeMessage(HomeMessage),
+    DashboardMessage(DashboardMessage),
+}
+
 impl App {
     pub fn new() -> Self {
         Self {
+            title: "Shelf".to_string(),
             theme: Theme::Dracula,
             font: Font::MONOSPACE,
             screen: Screen::Dashboard,
@@ -36,6 +47,7 @@ impl App {
         }
     }
 
+    // App view
     pub fn view(&self) -> Element<'_, AppMessage> {
         match self.screen {
             Screen::Home => self.home.view().map(|m| AppMessage::HomeMessage(m)),
@@ -44,6 +56,7 @@ impl App {
         }
     }
 
+    // App update
     pub fn update(&mut self, message: AppMessage) -> () {
         match message {
             AppMessage::HomeMessage(home_m) => match home_m {
@@ -60,6 +73,12 @@ impl App {
                 }
             }
         }
+    }
+}
+
+impl App {
+    pub fn title(&self) -> String {
+        self.title.clone()
     }
 
     pub fn theme(&self) -> Theme {
