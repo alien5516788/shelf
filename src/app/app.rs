@@ -43,7 +43,7 @@ impl App {
             screen: Screen::Dashboard,
 
             home: Home::new(),
-            dashboard: Dashboard::new(),
+            dashboard: Dashboard::new("Shelf"),
         }
     }
 
@@ -67,9 +67,9 @@ impl App {
                 DashboardMessage::GotoSettings => self.screen = Screen::Settings,
                 DashboardMessage::ToggleDarkMode => self.toggle_theme(),
                 DashboardMessage::SearchChanged(query) => {
-                    let navbar = &mut self.dashboard.navbar;
-                    navbar.search_query = query;
-                    navbar.search_results = navbar.search();
+                    let dashboard = &mut self.dashboard;
+                    dashboard.search_query = query;
+                    dashboard.search_results = dashboard.search();
                 }
             }
         }

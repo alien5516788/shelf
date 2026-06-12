@@ -1,8 +1,9 @@
 pub mod icon;
-pub mod ui;
+pub mod app;
 
 use iced::Font;
-use ui::app::App;
+
+use app::App;
 
 fn main() -> iced::Result {
     iced::application(App::new, App::update, App::view)
