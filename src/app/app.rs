@@ -65,11 +65,12 @@ impl App {
             AppMessage::DashboardMessage(dashboard_m) => match dashboard_m {
                 DashboardMessage::GotoHome => self.screen = Screen::Home,
                 DashboardMessage::GotoSettings => self.screen = Screen::Settings,
-                DashboardMessage::ToggleDarkMode => self.toggle_theme(),
-                DashboardMessage::SearchChanged(query) => {
-                    let dashboard = &mut self.dashboard;
-                    dashboard.search_query = query;
-                    dashboard.search_results = dashboard.search();
+                DashboardMessage::ToggleTheme => self.toggle_theme(),
+                DashboardMessage::ToggleGroupNavigatorOpen => {
+                    self.dashboard.toggle_group_navigator_open();
+                }
+                DashboardMessage::SearchItem(query) => {
+                    self.dashboard.search_item(query);
                 }
             }
         }

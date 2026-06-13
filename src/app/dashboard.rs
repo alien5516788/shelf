@@ -3,18 +3,19 @@ use iced::widget::{Column, Space, button, column, container, grid, row, text, te
 
 use crate::icon;
 
+
 #[derive(Debug, PartialEq)]
 pub struct Dashboard {
     app_name: &'static str,
-
-    pub search_query: String,
-    pub search_results: Vec<String>,
-
+    // navbar
+    search_query: String,
+    search_results: Vec<String>,
+    // group navigator
+    group_navigator_open: bool,
     group_list: Vec<GroupInfo>,
     current_group: GroupInfo,
-
-    pub command_list: Vec<CommandInfo>,
-
+    //current group
+    command_list: Vec<CommandInfo>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -23,8 +24,6 @@ pub struct CommandInfo {
     pub command_name: String,
     pub command_description: String,
 }
-
-
 
 #[derive(Debug, PartialEq)]
 struct GroupInfo {
@@ -37,8 +36,9 @@ struct GroupInfo {
 pub enum DashboardMessage {
     GotoHome,
     GotoSettings,
-    ToggleDarkMode,
-    SearchChanged(String),
+    ToggleTheme,
+    ToggleGroupNavigatorOpen,
+    SearchItem(String),
 }
 
 
@@ -46,10 +46,11 @@ impl Dashboard {
     pub fn new(app_name: &'static str) -> Self {
         Self {
             app_name: app_name,
-
+            // navbar
             search_query: String::new(),
             search_results: Vec::<String>::new(),
-
+            // group navigator
+            group_navigator_open: true,
             group_list: Vec::from([
                 GroupInfo {
                     group_id: "favorite".to_string(),
@@ -77,7 +78,7 @@ impl Dashboard {
                 group_name: "tempGroupName".to_string(),
                 item_count: 0,
             },
-
+            // current group
             command_list: Vec::from([
                 CommandInfo {
                     command_id: "tempCommandId".to_string(),
@@ -127,7 +128,7 @@ impl Dashboard {
                 // Search bar
                 container(
                     text_input("Search...", self.search_query.as_str())
-                        .on_input(|s| DashboardMessage::SearchChanged(s))
+                        .on_input(|s| DashboardMessage::SearchItem(s))
                 )
                 .width(Length::Fill)
                 .align_y(Alignment::Center)
@@ -138,7 +139,7 @@ impl Dashboard {
                     button("⚙ Settings")
                         .on_press(DashboardMessage::GotoSettings),
                     button("☀ Dark Mode")
-                        .on_press(DashboardMessage::ToggleDarkMode),
+                        .on_press(DashboardMessage::ToggleTheme),
                 ]
                 .spacing(10),
             ]
@@ -161,7 +162,7 @@ impl Dashboard {
     }
 
     fn group_navigator_view(&self) -> Element<'_, DashboardMessage> {
-        fn group_card_view(group_info: &GroupInfo) -> Element<'_, DashboardMessage> {
+        fn group_card_view(group_info: &GroupInfo, open: bool) -> Element<'_, DashboardMessage> {
             button(
                 row![
                     // Card icon
@@ -169,24 +170,33 @@ impl Dashboard {
                     Space::new()
                         .width(Length::Fixed(10.0)),
 
-                    // Card title
-                    text(&group_info.group_name)
-                        .style(|_| text::Style {
-                            color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
-                            ..Default::default()
-                        }),
-                    Space::new()
-                        .width(Length::Fill),
+                    // Card details
+                    match open {
+                        true => row![
+                            // Card title
+                            text(&group_info.group_name)
+                                .style(|_| text::Style {
+                                    color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
+                                    ..Default::default()
+                                }),
 
-                    // Card item count
-                    text(&group_info.item_count)
-                        .style(|_| text::Style {
-                            color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
-                            ..Default::default()
-                        }),
+                            Space::new()
+                                .width(Length::Fill),
+
+                            // Card item count
+                            text(&group_info.item_count)
+                                .style(|_| text::Style {
+                                    color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
+                                    ..Default::default()
+                                }),
+                        ],
+                        false => row![
+                            Space::new().width(0)
+                        ],
+                    },
                 ]
             )
-            .on_press(DashboardMessage::ToggleDarkMode)
+            .on_press(DashboardMessage::ToggleTheme)
             .padding(8)
             .width(220)
             .style(|_, status| button::Style {
@@ -227,7 +237,8 @@ impl Dashboard {
                 .style(|_, _| button::Style {
                     background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.0))),
                     ..Default::default()
-                }),
+                })
+                .on_press(DashboardMessage::ToggleGroupNavigatorOpen),
 
                 Space::new()
                     .height(Length::Fixed(20.0)),
@@ -238,8 +249,12 @@ impl Dashboard {
                         row![
                             icon::plus()
                                 .color(Color::from_rgb(0.3, 0.9, 0.4)),
-                            text("New Group")
-                                .color(Color::from_rgb(0.3, 0.9, 0.4))
+
+                            match self.group_navigator_open {
+                                true => container(text("New Group")
+                                    .color(Color::from_rgb(0.3, 0.9, 0.4))),
+                                false => container(Space::new()).width(0),
+                            }
                         ]
                         .spacing(10)
                     )
@@ -263,7 +278,7 @@ impl Dashboard {
                 // Group list
                 self.group_list.iter().fold(
                     Column::new().spacing(10),
-                    |column, group| column.push(group_card_view(&group)),
+                    |column, group| column.push(group_card_view(&group, self.group_navigator_open)),
                 ),
             ]
         )
@@ -335,9 +350,16 @@ impl Dashboard {
 
 }
 
+
 impl Dashboard {
-    pub fn search(&self) -> Vec<String> {
+    pub fn toggle_group_navigator_open(&mut self) {
+        self.group_navigator_open = !self.group_navigator_open;
+    }
+
+    pub fn search_item(&mut self, item_name: String) {
+        self.search_query = item_name;
+
         // TODO: Search in database
-        Vec::from(["temp".to_string()])
+        self.search_results = Vec::from(["temp".to_string()]);
     }
 }
