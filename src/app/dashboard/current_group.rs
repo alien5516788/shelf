@@ -1,5 +1,5 @@
 use iced::{Border, Color, Element, Length};
-use iced::widget::{button, column, container, grid, text};
+use iced::widget::{button, column, container, grid, row, text};
 
 use super::{Dashboard, DashboardMessage};
 
@@ -16,8 +16,13 @@ impl Dashboard {
 
         container(
             column![
-                // Group name
-                text(&self.current_group.group_name),
+                // Group controls
+                row![
+                    text(&self.current_group.group_name),
+                    button("Edit group"),
+                    button("Add command"),
+                    button("Add snippet"),
+                ],
 
                 // Items
                 grid!(

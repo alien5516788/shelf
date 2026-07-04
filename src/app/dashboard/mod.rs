@@ -1,10 +1,11 @@
 use iced::Element;
 use iced::widget::{column, row};
 
-mod navbar;
+mod navigator;
 mod group_navigator;
 mod current_group;
 mod current_script;
+mod status_bar;
 
 
 #[derive(Debug, PartialEq)]
@@ -99,12 +100,15 @@ impl Dashboard {
 
     pub fn view(&self) -> Element<'_, DashboardMessage> {
         column![
-            self.navbar_view(),
+            self.navigator_view(),
+
             row![
                 self.group_navigator_view(),
                 self.current_group_view(),
                 self.current_script_view(),
-            ]
+            ],
+
+            self.status_bar_view()
         ]
         .into()
     }

@@ -5,11 +5,12 @@ use super::{Dashboard, DashboardMessage};
 
 
 impl Dashboard {
-    pub fn navbar_view(&self) -> Element<'_, DashboardMessage> {
+    pub fn navigator_view(&self) -> Element<'_, DashboardMessage> {
         container(
             row![
                 // App name
-                button(text(self.app_name).size(24))
+                button(text(self.app_name)
+                    .size(24))
                     .style(|theme: &Theme, status: button::Status| {
                         button::Style {
                             background: None,

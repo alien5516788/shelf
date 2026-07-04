@@ -21,17 +21,17 @@ pub struct App {
     dashboard: Dashboard,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum AppMessage {
+    HomeMessage(HomeMessage),
+    DashboardMessage(DashboardMessage),
+}
+
 #[derive(Debug, PartialEq)]
 enum Screen {
     Home,
     Dashboard,
     Settings,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum AppMessage {
-    HomeMessage(HomeMessage),
-    DashboardMessage(DashboardMessage),
 }
 
 impl App {
@@ -82,7 +82,7 @@ impl App {
                 DashboardMessage::ToggleTheme => self.toggle_theme(),
                 DashboardMessage::ToggleGroupNavigatorOpen => {
                     self.dashboard.toggle_group_navigator_open();
-                }
+                },
                 DashboardMessage::SearchItem(query) => {
                     self.dashboard.search_item(query);
                 }

@@ -13,7 +13,7 @@ impl Dashboard {
                     // Card icon
                     group_icon_view(&group_info.group_name),
                     Space::new()
-                        .width(Length::Fixed(10.0)),
+                        .width(Length::Fill),
 
                     // Card details
                     match open {
@@ -73,18 +73,6 @@ impl Dashboard {
 
         container(
             column![
-                // Collapse side bar
-                button(
-                    icon::menu()
-                        .size(20.0)
-                        .color(Color::from_rgb(0.3, 0.4, 0.6))
-                )
-                .style(|_, _| button::Style {
-                    background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.0))),
-                    ..Default::default()
-                })
-                .on_press(DashboardMessage::ToggleGroupNavigatorOpen),
-
                 Space::new()
                     .height(Length::Fixed(20.0)),
 
