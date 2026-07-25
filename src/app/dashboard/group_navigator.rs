@@ -13,17 +13,17 @@ impl Dashboard {
                     row![
                         // Card icon
                         match group_info.group_name.as_str() {
-                            "Favorite" => icon::star()
+                            "Recent" => icon::history()
                                 .size(20.0)
                                 .color(Color::from_rgb(0.5, 0.9, 0.9)),
-                            "Recent" => icon::history()
+                            "Favorite" => icon::star()
                                 .size(20.0)
                                 .color(Color::from_rgb(0.5, 0.9, 0.9)),
                             _ => icon::group_box()
                                 .size(20.0)
                                 .color(Color::from_rgb(1.0, 0.7, 0.4)),
                         },
-    
+
                         // Card details
                         match open {
                             true => row![
@@ -37,7 +37,7 @@ impl Dashboard {
                                 // Space
                                 Space::new()
                                         .width(Length::Fill),
-    
+
                                 // Card item count
                                 text(&group_info.item_count)
                                     .style(|_| text::Style {
@@ -56,7 +56,7 @@ impl Dashboard {
             )
             .width(Length::Fill)
             .padding(8)
-            .on_press(DashboardMessage::ToggleTheme) // TODO: implement this
+            .on_press(DashboardMessage::SetCurrentGroup(group_info.clone()))
             .style(|_, status| button::Style {
                 background: match status {
                     button::Status::Hovered => Some(Background::Color(Color::from_rgb(0.2, 0.2, 0.3))),

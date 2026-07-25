@@ -4,7 +4,6 @@ use iced::widget::{column, row};
 mod navigator;
 mod group_navigator;
 mod current_group;
-mod current_script;
 mod status_bar;
 
 
@@ -29,10 +28,11 @@ pub struct CommandInfo {
     pub command_description: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GroupInfo {
     pub group_id: String,
     pub group_name: String,
+    pub group_description: Option<String>,
     pub item_count: usize,
 }
 
@@ -42,14 +42,15 @@ pub enum DashboardMessage {
     GotoSettings,
     ToggleTheme,
     ToggleGroupNavigatorOpen,
+    SetCurrentGroup(GroupInfo),
     SearchItem(String),
 }
 
 
 impl Dashboard {
-    pub fn new(app_name: &'static str) -> Self {
+    pub fn new() -> Self {
         Self {
-            app_name: app_name,
+            app_name: "Shelf",
             // navbar
             search_query: String::new(),
             search_results: Vec::<String>::new(),
@@ -57,37 +58,43 @@ impl Dashboard {
             group_navigator_open: true,
             group_list: Vec::from([
                 GroupInfo {
-                    group_id: "favorite".to_string(),
-                    group_name: "Favorite".to_string(),
-                    item_count: 0,
-                },
-                GroupInfo {
                     group_id: "recent".to_string(),
                     group_name: "Recent".to_string(),
+                    group_description: Some("This is recent group".to_string()),
                     item_count: 2,
+                },
+                GroupInfo {
+                    group_id: "favorite".to_string(),
+                    group_name: "Favorite".to_string(),
+                    group_description: Some("This is favourite group".to_string()),
+                    item_count: 0,
                 },
                 GroupInfo {
                     group_id: "cus2346245723tom".to_string(),
                     group_name: "Custom 1".to_string(),
+                    group_description: Some("This is normal group".to_string()),
                     item_count: 0,
                 },
                 GroupInfo {
                     group_id: "custo2342662m2".to_string(),
                     group_name: "Custom custom custom custom".to_string(),
+                    group_description: None,
                     item_count: 5,
                 },
                 GroupInfo {
                     group_id: "custo23sd42662m2".to_string(),
                     group_name: "wwwwwwwww wwwwwwwww".to_string(),
+                    group_description: None,
                     item_count: 5,
                 },
             ]),
-            current_group: GroupInfo {
-                group_id: "tempGroupId".to_string(),
-                group_name: "tempGroupName".to_string(),
-                item_count: 0,
-            },
             // current group
+            current_group: GroupInfo {
+                group_id: "recent".to_string(),
+                group_name: "Recent".to_string(),
+                group_description: Some("This is recent group".to_string()),
+                item_count: 2,
+            },
             command_list: Vec::from([
                 CommandInfo {
                     command_id: "tempCommandId".to_string(),
@@ -110,7 +117,6 @@ impl Dashboard {
             row![
                 self.group_navigator_view(),
                 self.current_group_view(),
-                self.current_script_view(),
             ],
 
             self.status_bar_view()
@@ -120,6 +126,10 @@ impl Dashboard {
 
     pub fn toggle_group_navigator_open(&mut self) {
         self.group_navigator_open = !self.group_navigator_open;
+    }
+
+    pub fn set_current_group(&mut self, group: GroupInfo) {
+        self.current_group = group;
     }
 
     pub fn search_item(&mut self, item_name: String) {

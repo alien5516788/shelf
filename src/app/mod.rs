@@ -43,7 +43,7 @@ impl App {
             screen: Screen::Dashboard,
 
             home: Home::new(),
-            dashboard: Dashboard::new("Shelf"),
+            dashboard: Dashboard::new(),
         }
     }
 
@@ -83,6 +83,7 @@ impl App {
                 DashboardMessage::ToggleGroupNavigatorOpen => {
                     self.dashboard.toggle_group_navigator_open();
                 },
+                DashboardMessage::SetCurrentGroup(group) => self.dashboard.set_current_group(group),
                 DashboardMessage::SearchItem(query) => {
                     self.dashboard.search_item(query);
                 }
