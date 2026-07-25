@@ -73,7 +73,12 @@ impl Dashboard {
                 },
                 GroupInfo {
                     group_id: "custo2342662m2".to_string(),
-                    group_name: "Custom 2".to_string(),
+                    group_name: "Custom custom custom custom".to_string(),
+                    item_count: 5,
+                },
+                GroupInfo {
+                    group_id: "custo23sd42662m2".to_string(),
+                    group_name: "wwwwwwwww wwwwwwwww".to_string(),
                     item_count: 5,
                 },
             ]),

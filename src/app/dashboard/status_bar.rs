@@ -1,4 +1,4 @@
-use iced::{Alignment, Background, Border, Color, Element, Length};
+use iced::{Background, Border, Color, Element, Length};
 use iced::widget::{button, container, row};
 
 use crate::icon;
