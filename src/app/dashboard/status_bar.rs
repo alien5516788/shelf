@@ -1,27 +1,26 @@
-use iced::{Background, Border, Color, Element, Length};
-use iced::widget::{button, container, row};
+use iced::{Border, Color, Element, Length};
+use iced::widget::{container, row};
 
-use crate::icon;
-use super::{Dashboard, DashboardMessage};
+#[derive(Debug, Clone, PartialEq)]
+pub struct StatusBar {
+    
+}
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum StatusBarMessage {
+    
+}
 
-impl Dashboard {
-    pub fn status_bar_view(&self) -> Element<'_, DashboardMessage> {
+impl StatusBar {
+    pub fn new() -> Self {
+        Self {
+            
+        }
+    }
+    pub fn view(&self) -> Element<'_, StatusBarMessage> {
         container(
             row![
-                // Collapse side bar
-                button(
-                    container(
-                        icon::menu()
-                            .size(15.0)
-                            .color(Color::from_rgb(0.3, 0.4, 0.6))
-                    )
-                )
-                .style(|_, _| button::Style {
-                    background: Some(Background::Color(Color::from_rgba(0.0, 0.7, 0.0, 0.8))),
-                    ..Default::default()
-                })
-                .on_press(DashboardMessage::ToggleGroupNavigatorOpen),
+                
             ]
         )
         .height(Length::Fixed(30.0))
@@ -30,11 +29,16 @@ impl Dashboard {
         .style(|_| container::Style {
             border: Border {
                 color: Color::from_rgb(0.4, 0.4, 0.4),
-                width: 1.0,
+                width: 0.5,
                 radius: 0.0.into(),
             },
             ..Default::default()
         })
         .into()
+    }
+
+    pub fn update(&mut self, message: StatusBarMessage) {
+        match message {
+        }
     }
 }

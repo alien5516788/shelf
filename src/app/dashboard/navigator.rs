@@ -1,15 +1,34 @@
 use iced::{Alignment, Border, Color, Element, Length, Theme};
 use iced::widget::{button, container, row, text, text_input};
 
-use super::{Dashboard, DashboardMessage};
+use crate::app::Screen;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Navigator {
+    pub search_query: String,
+    pub search_results: Vec<String>,
+}
 
-impl Dashboard {
-    pub fn navigator_view(&self) -> Element<'_, DashboardMessage> {
+#[derive(Debug, Clone, PartialEq)]
+pub enum NavigatorMessage {
+    SetScreen(Screen),
+    ToggleTheme,
+    SetSearchQuery(String),
+}
+
+impl Navigator {
+    pub fn new() -> Self {
+        Self {
+            search_query: String::new(),
+            search_results: Vec::<String>::new(),
+        }
+    }
+
+    pub fn view(&self, title: String) -> Element<'_, NavigatorMessage> {
         container(
             row![
                 // App name
-                button(text(self.app_name)
+                button(text(title)
                     .size(24))
                     .style(|theme: &Theme, status: button::Status| {
                         button::Style {
@@ -23,12 +42,12 @@ impl Dashboard {
                         }
                     })
                     .padding(0)
-                    .on_press(DashboardMessage::GotoHome),
+                    .on_press(NavigatorMessage::SetScreen(Screen::Home)),
 
                 // Search bar
                 container(
                     text_input("Search...", self.search_query.as_str())
-                        .on_input(|s| DashboardMessage::SearchItem(s))
+                        .on_input(|s| NavigatorMessage::SetSearchQuery(s))
                 )
                 .width(Length::Fill)
                 .align_y(Alignment::Center)
@@ -37,9 +56,9 @@ impl Dashboard {
                 // Shortcuts
                 row![
                     button("⚙ Settings")
-                        .on_press(DashboardMessage::GotoSettings),
+                        .on_press(NavigatorMessage::SetScreen(Screen::Settings)),
                     button("☀ Dark Mode")
-                        .on_press(DashboardMessage::ToggleTheme),
+                        .on_press(NavigatorMessage::ToggleTheme),
                 ]
                 .spacing(10),
             ]
@@ -50,7 +69,7 @@ impl Dashboard {
         .style(|theme: &Theme| container::Style {
             border: Border {
                 color: Color::from_rgb(0.4, 0.4, 0.45),
-                width: 1.0,
+                width: 0.5,
                 radius: 0.0.into(),
             },
             background: Some(iced::Background::Color(theme.palette().background)),
@@ -59,5 +78,17 @@ impl Dashboard {
         .height(70)
         .width(Length::Fill)
         .into()
+    }
+
+    pub fn update(&mut self, message: NavigatorMessage, screen: &mut Screen, theme: &mut Theme) {
+        match message {
+            NavigatorMessage::SetScreen(scrn) => *screen = scrn,
+            NavigatorMessage::ToggleTheme => match theme {
+                Theme::Light => *theme = Theme::Dracula,
+                Theme::Dracula => *theme = Theme::Light,
+                _ => *theme = Theme::Light,
+            },
+            NavigatorMessage::SetSearchQuery(query) => self.search_query = query,
+        }
     }
 }

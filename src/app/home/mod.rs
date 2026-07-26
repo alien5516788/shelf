@@ -1,13 +1,15 @@
 use iced::Element;
 use iced::widget::{column, text, button};
 
+use crate::app::Screen;
+
 
 #[derive(Debug, PartialEq)]
 pub struct Home {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum HomeMessage {
-    GotoDashboard,
+    SetScreen(Screen),
 }
 
 impl Home {
@@ -20,9 +22,15 @@ impl Home {
             text("Home Page").size(30),
 
             button("Go to Dashboard")
-                .on_press(HomeMessage::GotoDashboard),
+                .on_press(HomeMessage::SetScreen(Screen::Dashboard)),
         ]
         .spacing(10)
         .into()
+    }
+
+    pub fn update(&mut self, message: HomeMessage, screen: &mut Screen) {
+        match message {
+            HomeMessage::SetScreen(scrn) => *screen = scrn,
+        }
     }
 }

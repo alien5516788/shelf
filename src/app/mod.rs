@@ -1,14 +1,13 @@
 mod home;
 mod dashboard;
+mod settings;
 
 use iced::{Element, Font, Theme};
 
 use home::{Home, HomeMessage};
 use dashboard::{Dashboard, DashboardMessage};
+use settings::{Settings, SettingsMessage};
 
-/*
- * App state, message and view are divided into screens except app update
- */
 
 #[derive(Debug, PartialEq)]
 pub struct App {
@@ -19,16 +18,18 @@ pub struct App {
 
     home: Home,
     dashboard: Dashboard,
+    settings: Settings,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppMessage {
     HomeMessage(HomeMessage),
     DashboardMessage(DashboardMessage),
+    SettingsMessage(SettingsMessage),
 }
 
-#[derive(Debug, PartialEq)]
-enum Screen {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Screen {
     Home,
     Dashboard,
     Settings,
@@ -44,56 +45,26 @@ impl App {
 
             home: Home::new(),
             dashboard: Dashboard::new(),
+            settings: Settings::new(),
         }
     }
 
-    // App view
     pub fn view(&self) -> Element<'_, AppMessage> {
         match self.screen {
             Screen::Home => self.home.view().map(|m| AppMessage::HomeMessage(m)),
-            Screen::Dashboard => self.dashboard.view().map(|m| AppMessage::DashboardMessage(m)),
-            Screen::Settings => self.dashboard.view().map(|m| AppMessage::DashboardMessage(m)), // TODO: implement settings
+            Screen::Dashboard => self.dashboard.view(&self.title).map(|m| AppMessage::DashboardMessage(m)),
+            Screen::Settings => self.settings.view().map(|m| AppMessage::SettingsMessage(m)),
         }
     }
 
-    fn change_screen(&mut self, screen: Screen) {
-        self.screen = screen;
-    }
-
-    fn toggle_theme(&mut self) {
-        match self.theme {
-            Theme::Light => self.theme = Theme::Dracula,
-            Theme::Dracula => self.theme = Theme::Light,
-            _ => self.theme = Theme::Light,
-        }
-    }
-}
-
-
-impl App {
     pub fn update(&mut self, message: AppMessage) -> () {
         match message {
-            AppMessage::HomeMessage(home_m) => match home_m {
-                HomeMessage::GotoDashboard => self.change_screen(Screen::Dashboard),
-            },
-            AppMessage::DashboardMessage(dashboard_m) => match dashboard_m {
-                DashboardMessage::GotoHome => self.change_screen(Screen::Home),
-                DashboardMessage::GotoSettings => self.change_screen(Screen::Settings),
-                DashboardMessage::ToggleTheme => self.toggle_theme(),
-                DashboardMessage::ToggleGroupNavigatorOpen => {
-                    self.dashboard.toggle_group_navigator_open();
-                },
-                DashboardMessage::SetCurrentGroup(group) => self.dashboard.set_current_group(group),
-                DashboardMessage::SearchItem(query) => {
-                    self.dashboard.search_item(query);
-                }
-            }
+            AppMessage::HomeMessage(home_m) => self.home.update(home_m, &mut self.screen),
+            AppMessage::DashboardMessage(dashboard_m) => self.dashboard.update(dashboard_m, &mut self.screen, &mut self.theme),
+            AppMessage::SettingsMessage(settings_m) => self.settings.update(settings_m, &mut self.screen)
         }
     }
-}
 
-
-impl App {
     pub fn title(&self) -> String {
         self.title.clone()
     }
