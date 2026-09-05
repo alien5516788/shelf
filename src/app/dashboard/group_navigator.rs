@@ -117,7 +117,7 @@ impl GroupNavigator {
                 self.group_list.iter().fold(
                     Column::new()
                         .spacing(10),
-                    |column, group| column.push(self.group_card_view(&group)),
+                    |column, group| column.push(self.group_card_view(group)),
                 ),
             ]
         )

@@ -17,19 +17,11 @@ use super::Screen;
 #[derive(Debug, PartialEq)]
 pub struct Dashboard {
     pub current_group: GroupInfo,
-    pub command_list: Vec<CommandInfo>,
 
     pub navigator: Navigator,
     pub group_navigator: GroupNavigator,
     pub group: Group,
     pub status_bar: StatusBar,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct CommandInfo {
-    pub command_id: String,
-    pub command_name: String,
-    pub command_description: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -52,7 +44,6 @@ pub enum DashboardMessage {
 impl Dashboard {
     pub fn new() -> Self {
         Self {
-
             // current group
             current_group: GroupInfo {
                 group_id: "recent".to_string(),
@@ -60,18 +51,6 @@ impl Dashboard {
                 group_description: Some("This is recent group".to_string()),
                 item_count: 2,
             },
-            command_list: Vec::from([
-                CommandInfo {
-                    command_id: "tempCommandId".to_string(),
-                    command_name: "tempCommandName".to_string(),
-                    command_description: "tempCommandDescription".to_string(),
-                },
-                CommandInfo {
-                    command_id: "tempCommandId".to_string(),
-                    command_name: "tempCommandName".to_string(),
-                    command_description: "tempCommandDescription".to_string(),
-                }
-            ]),
             navigator: Navigator::new(),
             group_navigator: GroupNavigator::new(),
             group: Group::new(),

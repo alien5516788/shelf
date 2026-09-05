@@ -1,14 +1,32 @@
 use iced::font::{Family, Style};
 use iced::widget::tooltip::Position;
-use iced::widget::{Space, button, column, container, grid, row, text, tooltip};
+use iced::widget::{Grid, Space, button, column, container, row, text, tooltip};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length};
+use tokio::time::Instant;
 
 use crate::icon;
 use super::GroupInfo;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Group {
+    item_list: Vec<ItemInfo>,
+}
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ItemInfo {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub content: ItemContent,
+    pub tags: Vec<String>,
+    pub favourited: bool,
+    pub last_used_at: Instant,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ItemContent {
+    Command(String),
+    Script(Vec<String>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -19,7 +37,7 @@ pub enum GroupMessage {
 impl Group {
     pub fn new() -> Self {
         Self {
-
+            item_list: Vec::from([]),
         }
     }
 
@@ -59,7 +77,7 @@ impl Group {
                     .width(Length::Fill)
                     .padding(10)
                     .style(|_| container::Style {
-                        background: Some(Background::Color(Color::from_rgb(0.2, 0.2, 0.3))),
+                        background: Some(Background::Color(Color::from_rgba(0.2, 0.2, 0.3, 0.5))),
                         ..Default::default()
                     }),
 
@@ -73,7 +91,7 @@ impl Group {
                             column![
                                 Space::new()
                                     .height(5.0),
-    
+
                                 icon::pen()
                                     .size(15.0)
                                     .color(Color::from_rgb(0.5, 0.9, 0.9))
@@ -86,11 +104,11 @@ impl Group {
                             background: None,
                             ..Default::default()
                         }),
-                        
+
                         text("Edit Group")
                             .size(15.0)
                             .color(Color::from_rgb(0.8, 0.8, 0.8)),
-                        
+
                         Position::Top
                     ),
                 ],
@@ -105,7 +123,7 @@ impl Group {
                             background: None,
                             ..Default::default()
                         }),
-                    
+
                     button(icon::code_xml()
                         .size(20.0)
                         .color(Color::from_rgb(0.5, 0.9, 0.9)))
@@ -177,10 +195,9 @@ impl Group {
                 ],
 
                 // Items
-                grid!(
-                    self.command_card_view(),
-                    self.script_card_view(),
-                )
+                self.item_list
+                    .iter()
+                    .fold(Grid::new(), |column, item| column.push(self.item_card_view(item))),
             ]
             .spacing(10)
         )
@@ -198,12 +215,19 @@ impl Group {
         .into()
     }
 
-    fn command_card_view(&self) -> Element<'_, GroupMessage> {
-        button("command").into()
-    }
+    fn item_card_view(&self, item: &ItemInfo) -> Element<'_, GroupMessage> {
+        container(
+            row![
+                column![
+                    text(format!("{}", item.name)),
+                    text(format!("{}", item.description)),
+                ],
+                column![
 
-    fn script_card_view(&self) -> Element<'_, GroupMessage> {
-        button("script").into()
+                ]
+            ]
+        )
+        .into()
     }
 
     pub fn update(&mut self, message: GroupMessage) {

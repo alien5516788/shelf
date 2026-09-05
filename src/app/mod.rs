@@ -2,27 +2,34 @@ mod home;
 mod dashboard;
 mod settings;
 
-use iced::{Element, Font, Theme};
+use std::sync::Arc;
+use sqlx::{Pool, Sqlite, SqlitePool};
+use iced::{Element, Theme, Task};
 
 use home::{Home, HomeMessage};
 use dashboard::{Dashboard, DashboardMessage};
 use settings::{Settings, SettingsMessage};
 
+use crate::data::db::init_db;
 
-#[derive(Debug, PartialEq)]
+
+#[derive(Debug)]
 pub struct App {
     title: String,
     theme: Theme,
-    font: Font,
     screen: Screen,
 
     home: Home,
     dashboard: Dashboard,
     settings: Settings,
+
+    pool: Option<Arc<SqlitePool>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub enum AppMessage {
+    PoolLoaded(Result<Arc<Pool<Sqlite>>, String>),
+
     HomeMessage(HomeMessage),
     DashboardMessage(DashboardMessage),
     SettingsMessage(SettingsMessage),
@@ -36,17 +43,21 @@ pub enum Screen {
 }
 
 impl App {
-    pub fn new() -> Self {
-        Self {
-            title: "Shelf".to_string(),
-            theme: Theme::Dracula,
-            font: Font::MONOSPACE,
-            screen: Screen::Dashboard,
+    pub fn new() -> (Self, Task<AppMessage>) {
+        (
+            Self {
+                title: String::from("Shelf"),
+                theme: Theme::Dracula,
+                screen: Screen::Dashboard,
 
-            home: Home::new(),
-            dashboard: Dashboard::new(),
-            settings: Settings::new(),
-        }
+                home: Home::new(),
+                dashboard: Dashboard::new(),
+                settings: Settings::new(),
+
+                pool: None,
+            },
+            Task::perform(init_db(), |result| AppMessage::PoolLoaded(result)),
+        )
     }
 
     pub fn view(&self) -> Element<'_, AppMessage> {
@@ -57,16 +68,40 @@ impl App {
         }
     }
 
-    pub fn update(&mut self, message: AppMessage) -> () {
+    pub fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
         match message {
-            AppMessage::HomeMessage(home_m) => self.home.update(home_m, &mut self.screen),
-            AppMessage::DashboardMessage(dashboard_m) => self.dashboard.update(dashboard_m, &mut self.screen, &mut self.theme),
-            AppMessage::SettingsMessage(settings_m) => self.settings.update(settings_m, &mut self.screen)
+            AppMessage::PoolLoaded(result) => match result {
+                Ok(pool) => {
+                    self.pool = Some(pool);
+                    println!("Shelf: Database pool loaded successfully");
+                    Task::none()
+                },
+                Err(e) => {
+                    eprintln!("Shelf: Failed to create database pool: {e}");
+                    Task::none()
+                }
+            },
+            AppMessage::HomeMessage(home_m) => {
+                self.home.update(home_m, &mut self.screen);
+                Task::none()
+            },
+            AppMessage::DashboardMessage(dashboard_m) => {
+                self.dashboard.update(dashboard_m, &mut self.screen, &mut self.theme);
+                Task::none()
+            },
+            AppMessage::SettingsMessage(settings_m) => {
+                self.settings.update(settings_m, &mut self.screen);
+                Task::none()
+            }
         }
     }
 
     pub fn title(&self) -> String {
-        self.title.clone()
+        match self.screen {
+            Screen::Home => self.title.clone(),
+            Screen::Dashboard => String::from(format!("{} - Dashboard", self.title)),
+            Screen::Settings => String::from(format!("{} - Settings", self.title))
+        }
     }
 
     pub fn theme(&self) -> Theme {
