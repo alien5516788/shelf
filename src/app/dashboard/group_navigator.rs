@@ -1,59 +1,39 @@
-use iced::{Alignment, Background, Border, Color, Element, Length};
+use std::sync::Arc;
+
+use iced::{Alignment, Background, Border, Color, Element, Length, Task};
 use iced::widget::{Column, Space, button, column, container, row, text};
+use sqlx::SqlitePool;
 
 use crate::icon;
+use crate::services::group::{load_groups};
+use crate::utils::formatting::clamp_name;
 use super::GroupInfo;
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct GroupNavigator {
     pub group_navigator_open: bool,
     pub group_list: Vec<GroupInfo>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum GroupNavigatorMessage {
+    LoadGroupNavigator(Arc<SqlitePool>),
+    SetGroupList(Vec<GroupInfo>),
     ToggleGroupNavigatorOpen,
     SetCurrentGroup(GroupInfo),
 }
 
 impl GroupNavigator {
-    pub fn new() -> Self {
-        Self {
-            group_navigator_open: true,
-            group_list: Vec::from([
-                GroupInfo {
-                    group_id: "recent".to_string(),
-                    group_name: "Recent".to_string(),
-                    group_description: Some("This is recent group".to_string()),
-                    item_count: 2,
-                },
-                GroupInfo {
-                    group_id: "favorite".to_string(),
-                    group_name: "Favorite".to_string(),
-                    group_description: Some("This is favourite group".to_string()),
-                    item_count: 0,
-                },
-                GroupInfo {
-                    group_id: "cus2346245723tom".to_string(),
-                    group_name: "Custom 1".to_string(),
-                    group_description: Some("This is normal group".to_string()),
-                    item_count: 0,
-                },
-                GroupInfo {
-                    group_id: "custo2342662m2".to_string(),
-                    group_name: "Custom custom custom custom".to_string(),
-                    group_description: Some("wwwwwwwwwwwww wwwwwwwwwwwwwww wwwwwwwwwwwww wwwww w wwwww ww    wwwwwwwwwww wwwwwwwwww wwwwwww".to_string()),
-                    item_count: 5,
-                },
-                GroupInfo {
-                    group_id: "custo23sd42662m2".to_string(),
-                    group_name: "wwwwwwwww wwwwwwwww".to_string(),
-                    group_description: None,
-                    item_count: 5,
-                },
-            ]),
-        }
+    pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<GroupNavigatorMessage>) {
+        (
+            Self {
+                group_navigator_open: true,
+                group_list: Vec::from([]),
+            },
+
+            Task::done(GroupNavigatorMessage::LoadGroupNavigator(pool))
+        )
     }
 
     pub fn view(&self) -> Element<'_, GroupNavigatorMessage> {
@@ -200,26 +180,44 @@ impl GroupNavigator {
         .into()
     }
 
-    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo) {
+    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo) -> Task<GroupNavigatorMessage> {
         match message {
-            GroupNavigatorMessage::ToggleGroupNavigatorOpen => self.group_navigator_open = !self.group_navigator_open,
-            GroupNavigatorMessage::SetCurrentGroup(currnt_grp) => *current_group = currnt_grp,
+            GroupNavigatorMessage::LoadGroupNavigator(pool) => {
+                Task::perform(
+                    load_groups(pool),
+                    |groups| match groups {
+                        Ok(groups) => GroupNavigatorMessage::SetGroupList(
+                            groups.into_iter().map(|group| GroupInfo {
+                                group_id: group.id,
+                                group_name: group.name,
+                                group_description: group.description,
+                                item_count: group.item_count as usize,
+                            }).collect()
+                        ),
+                        Err(e) => {
+                            eprintln!("Failed to load groups: {}", e);
+                            GroupNavigatorMessage::SetGroupList(Vec::from([]))
+                        },
+                    }
+                )
+            },
+            GroupNavigatorMessage::SetGroupList(groups) => {
+                self.group_list = groups;
+
+                if let Some(first) = self.group_list.first() {
+                    *current_group = first.clone();
+                }
+
+                Task::none()
+            },
+            GroupNavigatorMessage::ToggleGroupNavigatorOpen =>{
+                self.group_navigator_open = !self.group_navigator_open;
+                Task::none()
+            },
+            GroupNavigatorMessage::SetCurrentGroup(currnt_grp) => {
+                *current_group = currnt_grp;
+                Task::none()
+            },
         }
-    }
-
-    pub fn _search_item(&mut self, _item_name: String) {
-        todo!();
-    }
-}
-
-
-fn clamp_name(name: &str, max_len: usize) -> String {
-    let char_count = name.chars().count();
-
-    if char_count <= max_len {
-        name.to_string()  // Convert &str to String
-    } else {
-        let truncate_at = max_len.saturating_sub(3);
-        name.chars().take(truncate_at).collect::<String>() + "..."
     }
 }

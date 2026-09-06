@@ -1,4 +1,4 @@
-use iced::{Alignment, Border, Color, Element, Length, Theme};
+use iced::{Alignment, Border, Color, Element, Length, Task, Theme};
 use iced::widget::{button, container, row, text, text_input};
 
 use crate::app::Screen;
@@ -17,11 +17,15 @@ pub enum NavigatorMessage {
 }
 
 impl Navigator {
-    pub fn new() -> Self {
-        Self {
-            search_query: String::new(),
-            search_results: Vec::<String>::new(),
-        }
+    pub fn new() -> (Self, Task<NavigatorMessage>) {
+        (
+            Self {
+                search_query: String::new(),
+                search_results: Vec::<String>::new(),
+            },
+
+            Task::none()
+        )
     }
 
     pub fn view(&self, title: String) -> Element<'_, NavigatorMessage> {
@@ -80,15 +84,30 @@ impl Navigator {
         .into()
     }
 
-    pub fn update(&mut self, message: NavigatorMessage, screen: &mut Screen, theme: &mut Theme) {
+    pub fn update(&mut self, message: NavigatorMessage, screen: &mut Screen, theme: &mut Theme) -> Task<NavigatorMessage> {
         match message {
-            NavigatorMessage::SetScreen(scrn) => *screen = scrn,
-            NavigatorMessage::ToggleTheme => match theme {
-                Theme::Light => *theme = Theme::Dracula,
-                Theme::Dracula => *theme = Theme::Light,
-                _ => *theme = Theme::Light,
+            NavigatorMessage::SetScreen(scrn) => {
+                *screen = scrn;
+                Task::none()
             },
-            NavigatorMessage::SetSearchQuery(query) => self.search_query = query,
+            NavigatorMessage::ToggleTheme => match theme {
+                Theme::Light => {
+                    *theme = Theme::Dracula;
+                    Task::none()
+                },
+                Theme::Dracula => {
+                    *theme = Theme::Light;
+                    Task::none()
+                },
+                _ => {
+                    *theme = Theme::Light;
+                    Task::none()
+                },
+            },
+            NavigatorMessage::SetSearchQuery(query) => {
+                self.search_query = query;
+                Task::none()
+            },
         }
     }
 }

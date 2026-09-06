@@ -1,11 +1,15 @@
-use iced::Element;
+use std::sync::Arc;
+
+use iced::{Element, Task};
 use iced::widget::{column, text, button};
+use sqlx::SqlitePool;
 
 use crate::app::Screen;
 
 
-#[derive(Debug, PartialEq)]
-pub struct Settings {}
+#[derive(Debug)]
+pub struct Settings {
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SettingsMessage {
@@ -13,8 +17,12 @@ pub enum SettingsMessage {
 }
 
 impl Settings {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(_pool: Arc<SqlitePool>) -> (Self, Task<SettingsMessage>) {
+        (
+            Self {
+            },
+            Task::none(),
+        )
     }
 
     pub fn view(&self) -> Element<'_, SettingsMessage> {
@@ -28,9 +36,12 @@ impl Settings {
         .into()
     }
 
-    pub fn update(&mut self, message: SettingsMessage, screen: &mut Screen) {
+    pub fn update(&mut self, message: SettingsMessage, screen: &mut Screen) -> Task<SettingsMessage> {
         match message {
-            SettingsMessage::SetScreen(scrn) => *screen = scrn,
+            SettingsMessage::SetScreen(scrn) => {
+                *screen = scrn;
+                Task::none()
+            },
         }
     }
 }

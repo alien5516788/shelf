@@ -1,5 +1,7 @@
 pub mod app;
 pub mod data;
+pub mod services;
+pub mod utils;
 pub mod icon;
 
 use iced::{application, Font};

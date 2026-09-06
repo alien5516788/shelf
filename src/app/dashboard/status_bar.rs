@@ -1,27 +1,26 @@
-use iced::{Border, Color, Element, Length};
+use iced::{Border, Color, Element, Length, Task};
 use iced::widget::{container, row};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StatusBar {
-    
+
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StatusBarMessage {
-    
+
 }
 
 impl StatusBar {
-    pub fn new() -> Self {
-        Self {
-            
-        }
+    pub fn new() -> (Self, Task<StatusBarMessage>) {
+        (
+            Self {},
+            Task::none(),
+        )
     }
     pub fn view(&self) -> Element<'_, StatusBarMessage> {
         container(
-            row![
-                
-            ]
+            row![]
         )
         .height(Length::Fixed(30.0))
         .width(Length::Fill)
@@ -37,8 +36,9 @@ impl StatusBar {
         .into()
     }
 
-    pub fn update(&mut self, message: StatusBarMessage) {
-        match message {
-        }
+    pub fn update(&mut self, _message: StatusBarMessage) -> Task<StatusBarMessage> {
+        Task::none()
+        // match message {
+        // }
     }
 }

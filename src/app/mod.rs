@@ -3,8 +3,9 @@ mod dashboard;
 mod settings;
 
 use std::sync::Arc;
-use sqlx::{Pool, Sqlite, SqlitePool};
-use iced::{Element, Theme, Task};
+use iced::{Element, Task, Theme};
+use iced::widget::Text;
+use sqlx::{Pool, Sqlite};
 
 use home::{Home, HomeMessage};
 use dashboard::{Dashboard, DashboardMessage};
@@ -19,16 +20,15 @@ pub struct App {
     theme: Theme,
     screen: Screen,
 
-    home: Home,
-    dashboard: Dashboard,
-    settings: Settings,
-
-    pool: Option<Arc<SqlitePool>>,
+    home: Option<Home>,
+    dashboard: Option<Dashboard>,
+    settings: Option<Settings>,
 }
 
 #[derive(Debug)]
 pub enum AppMessage {
     PoolLoaded(Result<Arc<Pool<Sqlite>>, String>),
+    LoadApp(Arc<Pool<Sqlite>>),
 
     HomeMessage(HomeMessage),
     DashboardMessage(DashboardMessage),
@@ -50,49 +50,75 @@ impl App {
                 theme: Theme::Dracula,
                 screen: Screen::Dashboard,
 
-                home: Home::new(),
-                dashboard: Dashboard::new(),
-                settings: Settings::new(),
-
-                pool: None,
+                home: None,
+                dashboard: None,
+                settings: None,
             },
-            Task::perform(init_db(), |result| AppMessage::PoolLoaded(result)),
+
+            Task::perform(
+                init_db(),
+                |pool| AppMessage::PoolLoaded(pool),
+            ),
         )
     }
 
     pub fn view(&self) -> Element<'_, AppMessage> {
         match self.screen {
-            Screen::Home => self.home.view().map(|m| AppMessage::HomeMessage(m)),
-            Screen::Dashboard => self.dashboard.view(&self.title).map(|m| AppMessage::DashboardMessage(m)),
-            Screen::Settings => self.settings.view().map(|m| AppMessage::SettingsMessage(m)),
+            Screen::Home => match &self.home {
+                Some(home) => home.view().map(|m| AppMessage::HomeMessage(m)),
+                None => self.loading_screen(), // TODO: Make a separate loading screen
+            },
+            Screen::Dashboard => match &self.dashboard {
+                Some(dashboard) => dashboard.view(&self.title).map(|m| AppMessage::DashboardMessage(m)),
+                None => self.loading_screen(),
+            },
+            Screen::Settings => match &self.settings {
+                Some(settings) => settings.view().map(|m| AppMessage::SettingsMessage(m)),
+                None => self.loading_screen(),
+            },
         }
     }
 
     pub fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
         match message {
-            AppMessage::PoolLoaded(result) => match result {
-                Ok(pool) => {
-                    self.pool = Some(pool);
+            AppMessage::PoolLoaded(pool) => match pool {
+                Ok(p) => {
                     println!("Shelf: Database pool loaded successfully");
-                    Task::none()
+                    Task::done(AppMessage::LoadApp(p))
                 },
                 Err(e) => {
-                    eprintln!("Shelf: Failed to create database pool: {e}");
+                    eprintln!("Shelf: Failed to create database pool: {}", e);
                     Task::none()
-                }
+                },
             },
-            AppMessage::HomeMessage(home_m) => {
-                self.home.update(home_m, &mut self.screen);
-                Task::none()
+            AppMessage::LoadApp(pool) => {
+                let (home, home_task) = Home::new();
+                self.home = Some(home);
+
+                let (dashboard, dashboard_task) = Dashboard::new(pool.clone());
+                self.dashboard = Some(dashboard);
+
+                let (settings, settings_task) = Settings::new(pool);
+                self.settings = Some(settings);
+
+                Task::batch([
+                    home_task.map(|m| AppMessage::HomeMessage(m)),
+                    dashboard_task.map(|m| AppMessage::DashboardMessage(m)),
+                    settings_task.map(|m| AppMessage::SettingsMessage(m)),
+                ])
             },
-            AppMessage::DashboardMessage(dashboard_m) => {
-                self.dashboard.update(dashboard_m, &mut self.screen, &mut self.theme);
-                Task::none()
+            AppMessage::HomeMessage(home_m) => match &mut self.home {
+                Some(home) => home.update(home_m, &mut self.screen).map(|m| AppMessage::HomeMessage(m)),
+                None => Task::none(),
             },
-            AppMessage::SettingsMessage(settings_m) => {
-                self.settings.update(settings_m, &mut self.screen);
-                Task::none()
-            }
+            AppMessage::DashboardMessage(dashboard_m) => match &mut self.dashboard {
+                Some(dashboard) => dashboard.update(dashboard_m, &mut self.screen, &mut self.theme).map(|m| AppMessage::DashboardMessage(m)),
+                None => Task::none(),
+            },
+            AppMessage::SettingsMessage(settings_m) => match &mut self.settings {
+                Some(settings) => settings.update(settings_m, &mut self.screen).map(|m| AppMessage::SettingsMessage(m)),
+                None => Task::none(),
+            },
         }
     }
 
@@ -106,5 +132,9 @@ impl App {
 
     pub fn theme(&self) -> Theme {
         self.theme.clone()
+    }
+
+    pub fn loading_screen(&self) -> Element<'_, AppMessage> {
+        Text::new("Loading...").into()
     }
 }

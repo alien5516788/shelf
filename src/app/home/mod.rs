@@ -1,4 +1,4 @@
-use iced::Element;
+use iced::{Element, Task};
 use iced::widget::{column, text, button};
 
 use crate::app::Screen;
@@ -13,8 +13,11 @@ pub enum HomeMessage {
 }
 
 impl Home {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new() -> (Self, Task<HomeMessage>) {
+        (
+            Self {},
+            Task::none(),
+        )
     }
 
     pub fn view(&self) -> Element<'_, HomeMessage> {
@@ -28,9 +31,12 @@ impl Home {
         .into()
     }
 
-    pub fn update(&mut self, message: HomeMessage, screen: &mut Screen) {
+    pub fn update(&mut self, message: HomeMessage, screen: &mut Screen) -> Task<HomeMessage> {
         match message {
-            HomeMessage::SetScreen(scrn) => *screen = scrn,
+            HomeMessage::SetScreen(scrn) => {
+                *screen = scrn;
+                Task::none()
+            },
         }
     }
 }

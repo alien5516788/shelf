@@ -1,7 +1,7 @@
 use iced::font::{Family, Style};
 use iced::widget::tooltip::Position;
 use iced::widget::{Grid, Space, button, column, container, row, text, tooltip};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length};
+use iced::{Alignment, Background, Border, Color, Element, Font, Length, Task};
 use tokio::time::Instant;
 
 use crate::icon;
@@ -25,8 +25,8 @@ pub struct ItemInfo {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ItemContent {
-    Command(String),
-    Script(Vec<String>),
+    _Command(String),
+    _Script(Vec<String>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,10 +35,13 @@ pub enum GroupMessage {
 }
 
 impl Group {
-    pub fn new() -> Self {
-        Self {
-            item_list: Vec::from([]),
-        }
+    pub fn new() -> (Self, Task<GroupMessage>) {
+        (
+            Self {
+                item_list: Vec::from([]),
+            },
+            Task::none(),
+        )
     }
 
     pub fn view(&self, current_group: &GroupInfo) -> Element<'_, GroupMessage> {
@@ -230,9 +233,9 @@ impl Group {
         .into()
     }
 
-    pub fn update(&mut self, message: GroupMessage) {
-        match message {
-
-        }
+    pub fn update(&mut self, _message: GroupMessage) -> Task<GroupMessage> {
+        Task::none()
+        // match message {
+        // }
     }
 }
