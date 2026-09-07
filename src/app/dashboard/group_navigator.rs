@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use iced::{Alignment, Background, Border, Color, Element, Length, Task};
-use iced::widget::{Column, Space, button, column, container, row, text};
+use iced::widget::{space, button, column, container, row, text};
 use sqlx::SqlitePool;
 
+use crate::app::dashboard::ItemDialog;
 use crate::icon;
 use crate::services::group::{load_groups};
 use crate::utils::formatting::clamp_name;
@@ -22,6 +23,7 @@ pub enum GroupNavigatorMessage {
     SetGroupList(Vec<GroupInfo>),
     ToggleGroupNavigatorOpen,
     SetCurrentGroup(GroupInfo),
+    OpenItemDialog(ItemDialog)
 }
 
 impl GroupNavigator {
@@ -52,7 +54,7 @@ impl GroupNavigator {
                 .on_press(GroupNavigatorMessage::ToggleGroupNavigatorOpen),
 
                 // Space
-                Space::new()
+                space()
                     .height(Length::Fixed(10.0)),
 
                 // Add new group button
@@ -69,7 +71,7 @@ impl GroupNavigator {
                                         .color(Color::from_rgb(0.3, 0.9, 0.4))
                                 ),
                                 false => container(
-                                    Space::new()
+                                    space()
                                 )
                                 .width(0),
                             }
@@ -80,6 +82,7 @@ impl GroupNavigator {
                     .width(Length::Fill)
                     .align_x(Alignment::Center)
                 )
+                .on_press(GroupNavigatorMessage::OpenItemDialog(ItemDialog::GroupNew))
                 .style(|_, _| button::Style {
                     border: Border {
                         color: Color::from_rgb(0.3, 0.9, 0.4),
@@ -90,12 +93,12 @@ impl GroupNavigator {
                 }),
 
                 // Space
-                Space::new()
+                space()
                     .height(Length::Fixed(20.0)),
 
                 // Group list
                 self.group_list.iter().fold(
-                    Column::new()
+                    column([])
                         .spacing(10),
                     |column, group| column.push(self.group_card_view(group)),
                 ),
@@ -148,8 +151,8 @@ impl GroupNavigator {
                                 }),
 
                             // Space
-                            Space::new()
-                                    .width(Length::Fill),
+                            space()
+                                .width(Length::Fill),
 
                             // Card item count
                             text(&group_info.item_count)
@@ -180,7 +183,7 @@ impl GroupNavigator {
         .into()
     }
 
-    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo) -> Task<GroupNavigatorMessage> {
+    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo, item_dialog: &mut ItemDialog) -> Task<GroupNavigatorMessage> {
         match message {
             GroupNavigatorMessage::LoadGroupNavigator(pool) => {
                 Task::perform(
@@ -216,6 +219,10 @@ impl GroupNavigator {
             },
             GroupNavigatorMessage::SetCurrentGroup(currnt_grp) => {
                 *current_group = currnt_grp;
+                Task::none()
+            },
+            GroupNavigatorMessage::OpenItemDialog(item_dlg) => {
+                *item_dialog = item_dlg;
                 Task::none()
             },
         }

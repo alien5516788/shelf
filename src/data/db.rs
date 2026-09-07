@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use sqlx::Error;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 
@@ -42,11 +41,11 @@ pub async fn init_db() -> Result<Arc<SqlitePool>, String> {
         .await
         .map_err(|e| format!("Migration failed: {e}"))?;
 
-    // Seed default groups (idempotent)
-    println!("Shelf: Seeding default groups");
-    seed_default_groups(&pool)
-        .await
-        .map_err(|e| format!("Seeding failed: {e}"))?;
+    // // Seed default groups (idempotent)
+    // println!("Shelf: Seeding default groups");
+    // seed_default_groups(&pool)
+    //     .await
+    //     .map_err(|e| format!("Seeding failed: {e}"))?;
 
     Ok(Arc::new(pool))
 }
@@ -56,26 +55,26 @@ fn database_path() -> Result<PathBuf, String> {
     Ok(data_dir.join(DB_NAME))
 }
 
-async fn seed_default_groups(pool: &SqlitePool) -> Result<(), Error> {
-    // Recent
-    sqlx::query(
-        r#"
-        INSERT OR IGNORE INTO groups (id, name, description)
-        VALUES ('recent', 'Recent', 'Recently used commands and scripts')
-        "#,
-    )
-    .execute(pool)
-    .await?;
+// async fn seed_default_groups(pool: &SqlitePool) -> Result<(), Error> {
+//     // Recent
+//     sqlx::query(
+//         r#"
+//         INSERT OR IGNORE INTO groups (id, name, description)
+//         VALUES ('recent', 'Recent', 'Recently used commands and scripts')
+//         "#,
+//     )
+//     .execute(pool)
+//     .await?;
 
-    // Favorite
-    sqlx::query(
-        r#"
-        INSERT OR IGNORE INTO groups (id, name, description)
-        VALUES ('favorite', 'Favorite', 'Your favourite commands and scripts')
-        "#,
-    )
-    .execute(pool)
-    .await?;
+//     // Favorite
+//     sqlx::query(
+//         r#"
+//         INSERT OR IGNORE INTO groups (id, name, description)
+//         VALUES ('favorite', 'Favorite', 'Your favourite commands and scripts')
+//         "#,
+//     )
+//     .execute(pool)
+//     .await?;
 
-    Ok(())
-}
+//     Ok(())
+// }

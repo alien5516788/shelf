@@ -4,13 +4,13 @@ mod settings;
 
 use std::sync::Arc;
 use iced::{Element, Task, Theme};
-use iced::widget::Text;
 use sqlx::{Pool, Sqlite};
 
 use home::{Home, HomeMessage};
 use dashboard::{Dashboard, DashboardMessage};
 use settings::{Settings, SettingsMessage};
 
+use crate::components::loading_screen::loading_screen_view;
 use crate::data::db::init_db;
 
 
@@ -66,15 +66,15 @@ impl App {
         match self.screen {
             Screen::Home => match &self.home {
                 Some(home) => home.view().map(|m| AppMessage::HomeMessage(m)),
-                None => self.loading_screen(), // TODO: Make a separate loading screen
+                None => loading_screen_view(),
             },
             Screen::Dashboard => match &self.dashboard {
                 Some(dashboard) => dashboard.view(&self.title).map(|m| AppMessage::DashboardMessage(m)),
-                None => self.loading_screen(),
+                None => loading_screen_view(),
             },
             Screen::Settings => match &self.settings {
                 Some(settings) => settings.view().map(|m| AppMessage::SettingsMessage(m)),
-                None => self.loading_screen(),
+                None => loading_screen_view(),
             },
         }
     }
@@ -132,9 +132,5 @@ impl App {
 
     pub fn theme(&self) -> Theme {
         self.theme.clone()
-    }
-
-    pub fn loading_screen(&self) -> Element<'_, AppMessage> {
-        Text::new("Loading...").into()
     }
 }

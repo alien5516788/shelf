@@ -4,7 +4,7 @@ use sqlx::{FromRow, SqlitePool};
 
 #[derive(Debug, Clone, FromRow)]
 pub struct GroupRow {
-    pub id: String,
+    pub id: i32,
     pub name: String,
     pub description: Option<String>,
     pub item_count: i64,
@@ -18,7 +18,7 @@ pub async fn load_groups(pool: Arc<SqlitePool>) -> Result<Vec<GroupRow>, String>
             g.name,
             g.description,
             COUNT(i.id) AS item_count
-        FROM groups g
+        FROM group g
         LEFT JOIN items i ON i.group_id = g.id
         GROUP BY g.id
         ORDER BY

@@ -14,7 +14,7 @@ pub struct Group {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemInfo {
-    pub id: String,
+    pub id: i32,
     pub name: String,
     pub description: String,
     pub content: ItemContent,
