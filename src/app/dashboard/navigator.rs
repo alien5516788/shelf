@@ -92,7 +92,7 @@ impl Navigator {
             },
             NavigatorMessage::ToggleTheme => match theme {
                 Theme::Light => {
-                    *theme = Theme::Dracula;
+                    *theme = Theme::Dark;
                     Task::none()
                 },
                 Theme::Dracula => {

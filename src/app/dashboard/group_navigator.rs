@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
+use iced::widget::text_editor::Content;
 use iced::{Alignment, Background, Border, Color, Element, Length, Task};
 use iced::widget::{space, button, column, container, row, text};
 use sqlx::SqlitePool;
 
-use crate::app::dashboard::ItemDialog;
 use crate::icon;
 use crate::services::group::{load_groups};
 use crate::utils::formatting::clamp_name;
-use super::GroupInfo;
+use super::{GroupInfo, ItemBox, GroupForm};
 
 
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ pub enum GroupNavigatorMessage {
     SetGroupList(Vec<GroupInfo>),
     ToggleGroupNavigatorOpen,
     SetCurrentGroup(GroupInfo),
-    OpenItemDialog(ItemDialog)
+    OpenNewGroupBox,
 }
 
 impl GroupNavigator {
@@ -31,7 +31,7 @@ impl GroupNavigator {
         (
             Self {
                 group_navigator_open: true,
-                group_list: Vec::from([]),
+                group_list: Vec::new(),
             },
 
             Task::done(GroupNavigatorMessage::LoadGroupNavigator(pool))
@@ -82,7 +82,7 @@ impl GroupNavigator {
                     .width(Length::Fill)
                     .align_x(Alignment::Center)
                 )
-                .on_press(GroupNavigatorMessage::OpenItemDialog(ItemDialog::GroupNew))
+                .on_press(GroupNavigatorMessage::OpenNewGroupBox)
                 .style(|_, _| button::Style {
                     border: Border {
                         color: Color::from_rgb(0.3, 0.9, 0.4),
@@ -128,7 +128,7 @@ impl GroupNavigator {
             container(
                 row![
                     // Card icon
-                    match group_info.group_name.as_str() {
+                    match group_info.name.as_str() {
                         "Recent" => icon::history()
                             .size(20.0)
                             .color(Color::from_rgb(0.5, 0.9, 0.9)),
@@ -144,7 +144,7 @@ impl GroupNavigator {
                     match self.group_navigator_open {
                         true => row![
                             // Card title
-                            text(clamp_name(&group_info.group_name, 16))
+                            text(clamp_name(&group_info.name, 16))
                                 .style(|_| text::Style {
                                     color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
                                     ..Default::default()
@@ -183,7 +183,7 @@ impl GroupNavigator {
         .into()
     }
 
-    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo, item_dialog: &mut ItemDialog) -> Task<GroupNavigatorMessage> {
+    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo, item_box: &mut ItemBox) -> Task<GroupNavigatorMessage> {
         match message {
             GroupNavigatorMessage::LoadGroupNavigator(pool) => {
                 Task::perform(
@@ -191,9 +191,9 @@ impl GroupNavigator {
                     |groups| match groups {
                         Ok(groups) => GroupNavigatorMessage::SetGroupList(
                             groups.into_iter().map(|group| GroupInfo {
-                                group_id: group.id,
-                                group_name: group.name,
-                                group_description: group.description,
+                                id: group.id,
+                                name: group.name,
+                                description: group.description,
                                 item_count: group.item_count as usize,
                             }).collect()
                         ),
@@ -217,12 +217,15 @@ impl GroupNavigator {
                 self.group_navigator_open = !self.group_navigator_open;
                 Task::none()
             },
-            GroupNavigatorMessage::SetCurrentGroup(currnt_grp) => {
-                *current_group = currnt_grp;
+            GroupNavigatorMessage::SetCurrentGroup(current_grp) => {
+                *current_group = current_grp;
                 Task::none()
             },
-            GroupNavigatorMessage::OpenItemDialog(item_dlg) => {
-                *item_dialog = item_dlg;
+            GroupNavigatorMessage::OpenNewGroupBox => {
+                *item_box = ItemBox::NewGroup(GroupForm {
+                    name: String::new(),
+                    description: Content::new(),
+                });
                 Task::none()
             },
         }
