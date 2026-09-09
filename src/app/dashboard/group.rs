@@ -1,19 +1,26 @@
+use std::sync::Arc;
+
 use iced::font::{Family, Style};
 use iced::widget::text_editor::Content;
-use iced::widget::tooltip::Position;
-use iced::widget::{Grid, Space, button, column, container, row, text, tooltip};
+use iced::widget::{Grid, button, column, container, row, space, text};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Task};
-use tokio::time::Instant;
+use sqlx::SqlitePool;
+use sqlx::types::chrono::NaiveDateTime;
 
-use crate::app::dashboard::group::GroupMessage::OpenEditGroupBox;
+use crate::app::dashboard::group::GroupMessage::ReloadGroup;
 use crate::app::dashboard::{GroupInfo, ItemBox, GroupForm, CommandForm, ScriptForm};
 use crate::icon;
 
+use crate::services::command::load_commands_for_group;
+use crate::services::script::load_scripts_for_group;
 
-#[derive(Debug, Clone, PartialEq)]
+
+#[derive(Debug, Clone)]
 pub struct Group {
     command_list: Vec<CommandInfo>,
-    script_list: Vec<ScriptInfo>
+    script_list: Vec<ScriptInfo>,
+
+    pool: Option<Arc<SqlitePool>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -22,7 +29,7 @@ pub struct CommandInfo {
     pub content: String,
     pub description: String,
     pub is_favourite: bool,
-    pub last_used_at: Instant,
+    pub last_used_at: Option<NaiveDateTime>,
     pub tags: Vec<String>,
 }
 
@@ -33,31 +40,39 @@ pub struct ScriptInfo {
     pub content: String,
     pub description: String,
     pub is_favourite: bool,
-    pub last_used_at: Instant,
+    pub last_used_at: Option<NaiveDateTime>,
     pub tags: Vec<String>,
 }
 
 
 #[derive(Debug, Clone)]
 pub enum GroupMessage {
+    LoadGroup(Arc<SqlitePool>),
+    ReloadGroup,
+    SetCommandList(Vec<CommandInfo>),
+    SetScriptList(Vec<ScriptInfo>),
+
     OpenEditGroupBox(GroupInfo),
-    OpenDeleteGroupBox(i32),
+    OpenDeleteGroupBox(GroupInfo),
     OpenNewCommandBox,
     OpenEditCommandBox(CommandInfo),
-    OpenDeleteCommandBox(i32),
+    OpenDeleteCommandBox(CommandInfo),
     OpenNewScriptBox,
     OpenEditScriptBox(ScriptInfo),
-    OpenDeleteScriptBox(i32),
+    OpenDeleteScriptBox(ScriptInfo),
 }
 
 impl Group {
-    pub fn new() -> (Self, Task<GroupMessage>) {
+    pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<GroupMessage>) {
         (
             Self {
                 command_list: Vec::new(),
                 script_list: Vec::new(),
+
+                pool: None,
             },
-            Task::none(),
+
+            Task::done(GroupMessage::LoadGroup(pool)),
         )
     }
 
@@ -76,62 +91,6 @@ impl Group {
                         .color(Color::from_rgb(0.3, 0.5, 1.0)),
                     text("$")
                         .color(Color::from_rgb(1.0, 1.0, 1.0)),
-                ],
-
-                // Group description and edit button
-                row![
-                    // Description
-                    container(
-                        match current_group.description.as_str() {
-                            "" => text("No description available")
-                                .color(Color::from_rgb(0.5, 0.5, 0.5))
-                                .font(Font {
-                                    family: Family::Monospace,
-                                    style: Style::Italic,
-                                    ..Default::default()
-                                }),
-                            description => text(description.to_string())
-                                .color(Color::from_rgb(0.9, 0.9, 0.9)),
-                        }
-                    )
-                    .width(Length::Fill)
-                    .padding(10)
-                    .style(|_| container::Style {
-                        background: Some(Background::Color(Color::from_rgba(0.2, 0.2, 0.3, 0.5))),
-                        ..Default::default()
-                    }),
-
-                    // Space
-                    Space::new()
-                        .width(10.0),
-
-                    // Edit group
-                    tooltip(
-                        button(
-                            column![
-                                Space::new()
-                                    .height(5.0),
-
-                                icon::pen()
-                                    .size(15.0)
-                                    .color(Color::from_rgb(0.5, 0.9, 0.9))
-                            ]
-                            .height(Length::Fill)
-                        )
-                        .on_press(OpenEditGroupBox(current_group.clone()))
-                        .height(40.0)
-                        .padding(0)
-                        .style(|_, _| button::Style {
-                            background: None,
-                            ..Default::default()
-                        }),
-
-                        text("Edit Group")
-                            .size(15.0)
-                            .color(Color::from_rgb(0.8, 0.8, 0.8)),
-
-                        Position::Top
-                    ),
                 ],
 
                 // Group controls and filters
@@ -161,7 +120,8 @@ impl Group {
                         }),
 
                     // Space
-                    Space::new().width(Length::Fill),
+                    space()
+                        .width(Length::Fill),
 
                     // Add new command
                     button(
@@ -188,7 +148,7 @@ impl Group {
                     }),
 
                     // Space
-                    Space::new()
+                    space()
                         .width(Length::Fixed(10.0)),
 
                     // Add new script
@@ -215,6 +175,78 @@ impl Group {
                         ..Default::default()
                     }),
 
+                ],
+
+                // Group description and edit button
+                row![
+                    // Description
+                    container(
+                        match current_group.description.as_str() {
+                            "" => text("No description available")
+                                .color(Color::from_rgb(0.5, 0.5, 0.5))
+                                .font(Font {
+                                    family: Family::Monospace,
+                                    style: Style::Italic,
+                                    ..Default::default()
+                                }),
+                            description => text(description.to_string())
+                                .color(Color::from_rgb(0.9, 0.9, 0.9)),
+                        }
+                    )
+                    .width(Length::Fill)
+                    .padding(10)
+                    .style(|_| container::Style {
+                        background: Some(Background::Color(Color::from_rgba(0.2, 0.2, 0.3, 0.5))),
+                        ..Default::default()
+                    }),
+
+                    // Space
+                    space()
+                        .width(10.0),
+
+                    // Edit group
+                    button(
+                        column![
+                            space()
+                                .height(5.0),
+
+                            icon::pen()
+                                .size(15.0)
+                                .color(Color::from_rgb(0.5, 0.9, 0.9))
+                        ]
+                        .height(Length::Fill)
+                    )
+                    .on_press(GroupMessage::OpenEditGroupBox(current_group.clone()))
+                    .height(40.0)
+                    .padding(0)
+                    .style(|_, _| button::Style {
+                        background: None,
+                        ..Default::default()
+                    }),
+
+                    // Space
+                    space()
+                        .width(10.0),
+
+                    // Delete group
+                    button(
+                        column![
+                            space()
+                                .height(5.0),
+
+                            icon::trash()
+                                .size(15.0)
+                                .color(Color::from_rgb(0.9, 0.1, 0.1))
+                        ]
+                        .height(Length::Fill)
+                    )
+                    .on_press(GroupMessage::OpenDeleteGroupBox(current_group.clone()))
+                    .height(40.0)
+                    .padding(0)
+                    .style(|_, _| button::Style {
+                        background: None,
+                        ..Default::default()
+                    })
                 ],
 
                 // Commands
@@ -256,9 +288,6 @@ impl Group {
                                 description => description.to_string(),
                             }
                         )),
-                ],
-                column![
-
                 ]
             ]
         )
@@ -278,30 +307,155 @@ impl Group {
                                 description => description.to_string(),
                             }
                         )),
-                ],
-                column![
-
                 ]
             ]
         )
         .into()
     }
 
-    pub fn update(&mut self, message: GroupMessage, item_box: &mut ItemBox) -> Task<GroupMessage> {
+    pub fn update(&mut self, message: GroupMessage, current_group: &mut GroupInfo, item_box: &mut ItemBox) -> Task<GroupMessage> {
         match message {
+            GroupMessage::LoadGroup(pool) => {
+                self.pool = Some(pool.clone());
+
+                Task::batch([
+                    Task::perform(
+                        load_commands_for_group(pool.clone(), current_group.id),
+                        |commands| match commands {
+                            Ok(commands) => GroupMessage::SetCommandList(
+                                commands.into_iter().map(|(command, tags)| CommandInfo {
+                                    id: command.id,
+                                    content: command.content,
+                                    description: command.description,
+                                    is_favourite: match command.is_favourite {
+                                        0 => false,
+                                        _ => true,
+                                    },
+                                    last_used_at: command.last_used_at.as_ref().and_then(|s| {
+                                        NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
+                                    }),
+                                    tags: tags,
+                                }).collect()
+                            ),
+                            Err(e) => {
+                                eprintln!("Failed to load commands: {}", e);
+                                GroupMessage::SetCommandList(Vec::from([]))
+                            },
+                        }
+                    ),
+                    Task::perform(
+                        load_scripts_for_group(pool, current_group.id),
+                        |scripts| match scripts {
+                            Ok(scripts) => GroupMessage::SetScriptList(
+                                scripts.into_iter().map(|(script, tags)| ScriptInfo {
+                                    id: script.id,
+                                    name: script.name,
+                                    content: script.content,
+                                    description: script.description,
+                                    is_favourite: match script.is_favourite {
+                                        0 => false,
+                                        _ => true,
+                                    },
+                                    last_used_at: script.last_used_at.as_ref().and_then(|s| {
+                                        NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
+                                    }),
+                                    tags: tags,
+                                }).collect()
+                            ),
+                            Err(e) => {
+                                eprintln!("Failed to load scripts: {}", e);
+                                GroupMessage::SetScriptList(Vec::from([]))
+                            },
+                        }
+                    ),
+                ])
+            },
+            ReloadGroup => {
+                // TODO: Remove dupliacte later
+                //
+                let Some(pool) = self.pool.clone() else {
+                    return Task::none();
+                };
+
+                Task::batch([
+                    Task::perform(
+                        load_commands_for_group(pool.clone(), current_group.id),
+                        |commands| match commands {
+                            Ok(commands) => GroupMessage::SetCommandList(
+                                commands.into_iter().map(|(command, tags)| CommandInfo {
+                                    id: command.id,
+                                    content: command.content,
+                                    description: command.description,
+                                    is_favourite: match command.is_favourite {
+                                        0 => false,
+                                        _ => true,
+                                    },
+                                    last_used_at: command.last_used_at.as_ref().and_then(|s| {
+                                        NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
+                                    }),
+                                    tags: tags,
+                                }).collect()
+                            ),
+                            Err(e) => {
+                                eprintln!("Failed to load commands: {}", e);
+                                GroupMessage::SetCommandList(Vec::from([]))
+                            },
+                        }
+                    ),
+                    Task::perform(
+                        load_scripts_for_group(pool, current_group.id),
+                        |scripts| match scripts {
+                            Ok(scripts) => GroupMessage::SetScriptList(
+                                scripts.into_iter().map(|(script, tags)| ScriptInfo {
+                                    id: script.id,
+                                    name: script.name,
+                                    content: script.content,
+                                    description: script.description,
+                                    is_favourite: match script.is_favourite {
+                                        0 => false,
+                                        _ => true,
+                                    },
+                                    last_used_at: script.last_used_at.as_ref().and_then(|s| {
+                                        NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
+                                    }),
+                                    tags: tags,
+                                }).collect()
+                            ),
+                            Err(e) => {
+                                eprintln!("Failed to load scripts: {}", e);
+                                GroupMessage::SetScriptList(Vec::from([]))
+                            },
+                        }
+                    ),
+                ])
+            },
+            GroupMessage::SetCommandList(commands) => {
+                self.command_list = commands;
+                Task::none()
+            },
+            GroupMessage::SetScriptList(scripts) => {
+                self.script_list = scripts;
+                Task::none()
+            },
             GroupMessage::OpenEditGroupBox(group_info) => {
                 *item_box = ItemBox::EditGroup(GroupForm {
+                    id: group_info.id,
                     name: group_info.name,
                     description: Content::with_text(&group_info.description)
                 });
                 Task::none()
             },
-            GroupMessage::OpenDeleteGroupBox(group_id) => {
-                *item_box = ItemBox::DeleteGroup(group_id);
+            GroupMessage::OpenDeleteGroupBox(group_info) => {
+                *item_box = ItemBox::DeleteGroup(GroupForm {
+                    id: group_info.id,
+                    name: group_info.name,
+                    description: Content::with_text(&group_info.description)
+                });
                 Task::none()
             },
             GroupMessage::OpenNewCommandBox => {
                 *item_box = ItemBox::NewCommand(CommandForm {
+                    id: -1,
                     content: String::new(),
                     description: Content::new(),
                     tag: String::new(),
@@ -309,21 +463,29 @@ impl Group {
                 });
                 Task::none()
             },
-            GroupMessage::OpenEditCommandBox(item_info) => {
+            GroupMessage::OpenEditCommandBox(command_info) => {
                 *item_box = ItemBox::EditCommand(CommandForm {
-                    content: item_info.content,
-                    description: Content::with_text(&item_info.description),
+                    id: command_info.id,
+                    content: command_info.content,
+                    description: Content::with_text(&command_info.description),
                     tag: String::new(),
-                    tags: item_info.tags,
+                    tags: command_info.tags,
                 });
                 Task::none()
             },
-            GroupMessage::OpenDeleteCommandBox(item_id) => {
-                *item_box = ItemBox::DeleteCommand(item_id);
+            GroupMessage::OpenDeleteCommandBox(command_info) => {
+                *item_box = ItemBox::DeleteCommand(CommandForm {
+                    id: command_info.id,
+                    content: command_info.content,
+                    description: Content::with_text(&command_info.description),
+                    tag: String::new(),
+                    tags: command_info.tags,
+                });
                 Task::none()
             },
             GroupMessage::OpenNewScriptBox => {
                 *item_box = ItemBox::NewScript(ScriptForm {
+                    id: -1,
                     name: String::new(),
                     content: Content::new(),
                     description: Content::new(),
@@ -332,18 +494,26 @@ impl Group {
                 });
                 Task::none()
             },
-            GroupMessage::OpenEditScriptBox(item_info) => {
+            GroupMessage::OpenEditScriptBox(script_info) => {
                 *item_box = ItemBox::EditScript(ScriptForm {
-                    name: item_info.name.clone(),
-                    content: Content::with_text(&item_info.content),
-                    description: Content::with_text(&item_info.description),
+                    id: script_info.id,
+                    name: script_info.name.clone(),
+                    content: Content::with_text(&script_info.content),
+                    description: Content::with_text(&script_info.description),
                     tag: String::new(),
-                    tags: item_info.tags,
+                    tags: script_info.tags,
                 });
                 Task::none()
             },
-            GroupMessage::OpenDeleteScriptBox(item_id) => {
-                *item_box = ItemBox::DeleteScript(item_id);
+            GroupMessage::OpenDeleteScriptBox(script_info) => {
+                *item_box = ItemBox::DeleteScript(ScriptForm {
+                    id: script_info.id,
+                    name: script_info.name.clone(),
+                    content: Content::with_text(&script_info.content),
+                    description: Content::with_text(&script_info.description),
+                    tag: String::new(),
+                    tags: script_info.tags,
+                });
                 Task::none()
             },
         }

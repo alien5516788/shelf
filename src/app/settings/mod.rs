@@ -9,19 +9,22 @@ use crate::app::Screen;
 
 #[derive(Debug)]
 pub struct Settings {
+    pool: Option<Arc<SqlitePool>>
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum SettingsMessage {
+    LoadSettings(Arc<SqlitePool>),
     SetScreen(Screen),
 }
 
 impl Settings {
-    pub fn new(_pool: Arc<SqlitePool>) -> (Self, Task<SettingsMessage>) {
+    pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<SettingsMessage>) {
         (
             Self {
+                pool: None,
             },
-            Task::none(),
+            Task::done(SettingsMessage::LoadSettings(pool)),
         )
     }
 
@@ -38,6 +41,10 @@ impl Settings {
 
     pub fn update(&mut self, message: SettingsMessage, screen: &mut Screen) -> Task<SettingsMessage> {
         match message {
+            SettingsMessage::LoadSettings(pool) => {
+                self.pool = Some(pool);
+                Task::none()
+            },
             SettingsMessage::SetScreen(scrn) => {
                 *screen = scrn;
                 Task::none()
