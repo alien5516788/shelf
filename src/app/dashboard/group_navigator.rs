@@ -9,7 +9,7 @@ use crate::app::dashboard::group_navigator::GroupNavigatorMessage::ReloadGroupNa
 use crate::icon;
 use crate::services::group::{load_groups};
 use crate::utils::formatting::clamp_name;
-use super::{GroupInfo, ItemBox, GroupForm};
+use super::{GroupInfo, ItemBox, ItemForm};
 
 
 #[derive(Debug, Clone)]
@@ -188,7 +188,7 @@ impl GroupNavigator {
         .into()
     }
 
-    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo, item_box: &mut ItemBox) -> Task<GroupNavigatorMessage> {
+    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo, item_box: &mut ItemBox, item_form: &mut ItemForm) -> Task<GroupNavigatorMessage> {
         match message {
             GroupNavigatorMessage::LoadGroupNavigator(pool) => {
                 self.pool = Some(pool.clone());
@@ -272,11 +272,12 @@ impl GroupNavigator {
                 Task::none()
             },
             GroupNavigatorMessage::OpenNewGroupBox => {
-                *item_box = ItemBox::NewGroup(GroupForm {
-                    id: -1,
-                    name: String::new(),
-                    description: Content::new(),
-                });
+                *item_box = ItemBox::NewGroup;
+                *item_form = ItemForm {
+                    name: Some(String::new()),
+                    description: Some(Content::new()),
+                    ..Default::default()
+                };
                 Task::none()
             },
         }

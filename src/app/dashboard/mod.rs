@@ -6,9 +6,8 @@ mod status_bar;
 use std::sync::Arc;
 use iced::border::Radius;
 use iced::widget::{Row, center_y};
-use iced::widget::text::Wrapping;
 use iced::{Background, Border, Color, Element, Length, Task, Theme};
-use iced::widget::{button, column, container, row, space, stack, text, text_editor, text_input, text_editor::{Content, Action}};
+use iced::widget::{button, column, container, row, space, stack, text, text::Wrapping, text_editor, text_input, text_editor::{Content, Action}};
 use sqlx::SqlitePool;
 
 use navigator::{Navigator, NavigatorMessage};
@@ -22,7 +21,6 @@ use crate::icon;
 use crate::services::command::{create_command, delete_command, update_command};
 use crate::services::group::{create_group, delete_group, update_group};
 use crate::services::script::{create_script, delete_script, update_script};
-use crate::utils::formatting::clamp_name;
 
 use super::Screen;
 
@@ -31,6 +29,7 @@ use super::Screen;
 pub struct Dashboard {
     pub current_group: GroupInfo,
     pub item_box: ItemBox,
+    pub item_form: ItemForm,
     pub item_error: Option<String>,
 
     pub navigator: Option<Navigator>,
@@ -52,41 +51,25 @@ pub struct GroupInfo {
 #[derive(Debug, Clone)]
 pub enum ItemBox {
     None,
-    NewGroup(GroupForm),
-    EditGroup(GroupForm),
-    DeleteGroup(GroupForm),
-    NewCommand(CommandForm),
-    EditCommand(CommandForm),
-    DeleteCommand(CommandForm),
-    NewScript(ScriptForm),
-    EditScript(ScriptForm),
-    DeleteScript(ScriptForm),
+    NewGroup,
+    EditGroup,
+    DeleteGroup,
+    NewCommand,
+    EditCommand,
+    DeleteCommand,
+    NewScript,
+    EditScript,
+    DeleteScript,
 }
 
-#[derive(Debug, Clone)]
-pub struct GroupForm {
-    pub id: i32,
-    pub name: String,
-    pub description: Content,
-}
-
-#[derive(Debug, Clone)]
-pub struct CommandForm {
-    pub id: i32,
-    pub content: String,
-    pub description: Content,
-    pub tag: String,
-    pub tags: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ScriptForm {
-    pub id: i32,
-    pub name: String,
-    pub content: Content,
-    pub description: Content,
-    pub tag: String,
-    pub tags: Vec<String>,
+#[derive(Debug, Clone, Default)]
+pub struct ItemForm {
+    pub id: Option<i32>,
+    pub name: Option<String>, // NOTE: For commands, the content field is the name field
+    pub content: Option<Content>,
+    pub description: Option<Content>,
+    pub tag: Option<String>,
+    pub tags: Option<Vec<String>>,
 }
 
 
@@ -94,24 +77,16 @@ pub struct ScriptForm {
 pub enum DashboardMessage {
     LoadDashboard(Arc<SqlitePool>),
 
-    SetGroupFormName(String),
-    SetGroupFormDescription(Action),
-    SetCommandFormContent(String),
-    SetCommandFormDescription(Action),
-    SetCommandFormTag(String),
-    AddCommandFormTag,
-    RemoveCommandFormTag(usize),
-    SetScriptFormName(String),
-    SetScriptFormContent(Action),
-    SetScriptFormDescription(Action),
-    SetScriptFormTag(String),
-    AddScriptFormTag,
-    RemoveScriptFormTag(usize),
+    SetItemFormName(String),
+    SetItemFormContent(Action),
+    SetItemFormDescription(Action),
+    SetItemFormTag(String),
+    AddItemFormTag,
+    RemoveItemFormTag(usize),
 
-    CloseItemBox,
-    SubmitItemBox,
-    ItemBoxDone(Result<(), String>),
-    // GroupsReloaded(Result<Vec<GroupRow>, String>),
+    CloseItemBox, // Immediately closes the item box
+    SubmitItemBox, // Emitting Task -> ItemBoxDone without closing
+    ItemBoxDone(Result<(), String>), // Closes or Display error
 
     NavigatorMessage(NavigatorMessage),
     GroupNavigatorMessage(GroupNavigatorMessage),
@@ -131,6 +106,7 @@ impl Dashboard {
                     item_count: 0,
                 },
                 item_box: ItemBox::None,
+                item_form: ItemForm::default(),
                 item_error: None,
                 navigator: None,
                 group_navigator: None,
@@ -336,15 +312,15 @@ impl Dashboard {
                 column![
                     // Box title
                     match &self.item_box {
-                        ItemBox::NewGroup(_) => text("New Group").size(13),
-                        ItemBox::EditGroup(_) => text("Edit Group").size(13),
-                        ItemBox::DeleteGroup(_) => text("Delete Group").size(13),
-                        ItemBox::NewCommand(_) => text("New Command").size(13),
-                        ItemBox::EditCommand(_) => text("Edit Command").size(13),
-                        ItemBox::DeleteCommand(_) => text("Delete Command").size(13),
-                        ItemBox::NewScript(_) => text("New Script").size(13),
-                        ItemBox::EditScript(_) => text("Edit Script").size(13),
-                        ItemBox::DeleteScript(_) => text("Delete Script").size(13),
+                        ItemBox::NewGroup => text("New Group").size(13),
+                        ItemBox::EditGroup => text("Edit Group").size(13),
+                        ItemBox::DeleteGroup => text("Delete Group").size(13),
+                        ItemBox::NewCommand => text("New Command").size(13),
+                        ItemBox::EditCommand => text("Edit Command").size(13),
+                        ItemBox::DeleteCommand => text("Delete Command").size(13),
+                        ItemBox::NewScript => text("New Script").size(13),
+                        ItemBox::EditScript => text("Edit Script").size(13),
+                        ItemBox::DeleteScript => text("Delete Script").size(13),
                         _ => text(""),
                     }
                     .size(18)
@@ -363,47 +339,35 @@ impl Dashboard {
                         ..Default::default()
                     }),
 
-                    // Input fields and Tag inputs
+                    // Input fields and Tag input or body text
                     match &self.item_box {
-                        ItemBox::NewGroup(form) | ItemBox::EditGroup(form) => column![
-                            text_input_view("Name", &form.name, false, |name| DashboardMessage::SetGroupFormName(name)),
-                            text_editor_view("Description (optional)", &form.description, false, |action| DashboardMessage::SetGroupFormDescription(action)),
+                        ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => column![
+                            match &self.item_form.name {
+                                Some(name) => container(text(format!("Are you sure you want to delete '{}' ?", name)).size(13)),
+                                None => container(space()),
+                            }
                         ],
-                        ItemBox::DeleteGroup(form) => column![
-                            text(format!("Are you sure you want to delete group '{}' ?", form.name)).size(13),
-                        ],
-                        ItemBox::NewCommand(form) | ItemBox::EditCommand(form) => column![
-                            text_input_view("Content", &form.content, false, |content| DashboardMessage::SetCommandFormContent(content)),
-                            text_editor_view("Description (optional)", &form.description, false, |action| DashboardMessage::SetCommandFormDescription(action)),
-                            tag_input_view(
-                                &form.tags,
-                                &form.tag,
-                                DashboardMessage::SetCommandFormTag,
-                                DashboardMessage::AddCommandFormTag,
-                                DashboardMessage::RemoveCommandFormTag,
-                            )
-                        ],
-                        ItemBox::DeleteCommand(form) => column![
-                            text(format!("Are you sure you want to delete command '{}' ?", clamp_name(&form.content, 20))).size(13),
-                        ],
-                        ItemBox::NewScript(form) | ItemBox::EditScript(form) => column![
-                            text_input_view("Name", &form.name, false, |name| DashboardMessage::SetScriptFormName(name)),
-                            text_editor_view("Content", &form.content, false, |action| DashboardMessage::SetScriptFormContent(action)),
-                            text_editor_view("Description (optional)", &form.description, false, |action| DashboardMessage::SetScriptFormDescription(action)),
-                            tag_input_view(
-                                &form.tags,
-                                &form.tag,
-                                DashboardMessage::SetScriptFormTag,
-                                DashboardMessage::AddScriptFormTag,
-                                DashboardMessage::RemoveScriptFormTag,
-                            )
-                        ],
-                        ItemBox::DeleteScript(form) => column![
-                            text(format!("Are you sure you want to delete script '{}' ?", form.name)).size(13),
-                        ],
-                        _ => column!(),
-                    }
-                    .spacing(20),
+                        _ => column![
+                            match &self.item_form.name {
+                                Some(name) => text_input_view("Name", name, false, |name| DashboardMessage::SetItemFormName(name)),
+                                None => space().into(),
+                            },
+                            match &self.item_form.content {
+                                Some(content) => text_editor_view("Content", content, false, |action| DashboardMessage::SetItemFormContent(action)),
+                                None => space().into(),
+                            },
+                            match &self.item_form.description {
+                                Some(description) => text_editor_view("Description (optional)", description, false, |action| DashboardMessage::SetItemFormDescription(action)),
+                                None => space().into(),
+                            },
+                            match &self.item_form.tags {
+                                Some(tags) => tag_input_view(tags, "", |tag| DashboardMessage::SetItemFormTag(tag), DashboardMessage::AddItemFormTag, |index| DashboardMessage::RemoveItemFormTag(index)),
+                                None => space().into(),
+                            },
+
+                        ]
+                        .spacing(20),
+                    },
 
                     // Confirm and Cancel buttons
                     row![
@@ -441,7 +405,6 @@ impl Dashboard {
         )
     }
 
-
     pub fn update(&mut self, message: DashboardMessage, screen: &mut Screen, theme: &mut Theme) -> Task<DashboardMessage> {
         match message {
             DashboardMessage::LoadDashboard(pool) => {
@@ -466,251 +429,167 @@ impl Dashboard {
                     status_bar_task.map(|m| DashboardMessage::StatusBarMessage(m)),
                 ])
             },
-            DashboardMessage::SetGroupFormName(name) => {
-                match &mut self.item_box {
-                    ItemBox::NewGroup(form) | ItemBox::EditGroup(form)=> {
-                        form.name = name;
+            DashboardMessage::SetItemFormName(nm) => {
+                match &mut self.item_form.name {
+                    Some(name) => *name = nm,
+                    None => ()
+                }
+                Task::none()
+            },
+            DashboardMessage::SetItemFormContent(action) => {
+                match &mut self.item_form.content {
+                    Some(content) => content.perform(action),
+                    None => ()
+                }
+                Task::none()
+            },
+            DashboardMessage::SetItemFormDescription(action) => {
+                match &mut self.item_form.description {
+                    Some(description) => description.perform(action),
+                    None => ()
+                }
+                Task::none()
+            },
+            DashboardMessage::SetItemFormTag(t) => {
+                match &mut self.item_form.tag {
+                    Some(tag) => *tag = t,
+                    None => ()
+                }
+                Task::none()
+            },
+            DashboardMessage::AddItemFormTag => {
+                match &mut self.item_form.tags {
+                    Some(tags) => {
+                        match &mut self.item_form.tag {
+                            Some(tag) => {
+                                tags.push(tag.clone());
+                                tag.clear();
+                                Task::none()
+                            },
+                            None => Task::none(),
+                        }
+                    },
+                    None => Task::none(),
+                }
+            },
+            DashboardMessage::RemoveItemFormTag(idx) => {
+                match &mut self.item_form.tags {
+                    Some(tags) => {
+                        tags.remove(idx);
                         Task::none()
                     },
                     _ => Task::none(),
                 }
             },
-            DashboardMessage::SetGroupFormDescription(action) => {
-                match &mut self.item_box {
-                    ItemBox::NewGroup(form) | ItemBox::EditGroup(form)=> {
-                        form.description.perform(action);
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::SetCommandFormContent(content) => {
-                match &mut self.item_box {
-                    ItemBox::NewCommand(form) | ItemBox::EditCommand(form)=> {
-                        form.content = content;
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::SetCommandFormDescription(action) => {
-                match &mut self.item_box {
-                    ItemBox::NewCommand(form) | ItemBox::EditCommand(form)=> {
-                        form.description.perform(action);
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::SetCommandFormTag(tag) => {
-                match &mut self.item_box {
-                    ItemBox::NewCommand(form) | ItemBox::EditCommand(form) => {
-                        form.tag = tag;
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::AddCommandFormTag => {
-                match &mut self.item_box {
-                    ItemBox::NewCommand(form) | ItemBox::EditCommand(form) => {
-                        form.tags.push(form.tag.clone());
-                        form.tag.clear();
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::RemoveCommandFormTag(idx) => {
-                match &mut self.item_box {
-                    ItemBox::NewCommand(form) | ItemBox::EditCommand(form) => {
-                        form.tags.remove(idx);
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::SetScriptFormName(name) => {
-                match &mut self.item_box {
-                    ItemBox::NewScript(form) | ItemBox::EditScript(form)=> {
-                        form.name = name;
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::SetScriptFormContent(action) => {
-                match &mut self.item_box {
-                    ItemBox::NewScript(form) | ItemBox::EditScript(form) => {
-                        form.content.perform(action);
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::SetScriptFormDescription(action) => {
-                match &mut self.item_box {
-                    ItemBox::NewScript(form) | ItemBox::EditScript(form) => {
-                        form.description.perform(action);
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::SetScriptFormTag(tag) => {
-                match &mut self.item_box {
-                    ItemBox::NewScript(form) | ItemBox::EditScript(form) => {
-                        form.tag = tag;
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::AddScriptFormTag => {
-                match &mut self.item_box {
-                    ItemBox::NewScript(form) | ItemBox::EditScript(form) => {
-                        form.tags.push(form.tag.clone());
-                        form.tag.clear();
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
-            },
-            DashboardMessage::RemoveScriptFormTag(idx) => {
-                match &mut self.item_box {
-                    ItemBox::NewScript(form) | ItemBox::EditScript(form) => {
-                        form.tags.remove(idx);
-                        Task::none()
-                    },
-                    _ => Task::none(),
-                }
+            DashboardMessage::CloseItemBox => {
+                self.item_box = ItemBox::None;
+                self.item_form = ItemForm::default();
+                self.item_error = None;
+                Task::none()
             },
             DashboardMessage::SubmitItemBox => {
+                // Check db pool
                 let Some(pool) = self.pool.clone() else {
                     self.item_error = Some("Failed to save content".to_string());
                     eprintln!("Shelf: Failed to save content: no database connection");
                     return Task::none();
                 };
 
+                // Extract fields
+                let id = self.item_form.id.unwrap_or(-1);
+                let name = self.item_form.name.clone().unwrap_or(String::new());
+                let content = self.item_form.content.clone().unwrap_or(Content::new());
+                let description = self.item_form.description.clone().unwrap_or(Content::new());
+                let tags = self.item_form.tags.clone().unwrap_or(Vec::new());
+
                 match &self.item_box {
-                    ItemBox::NewGroup(form) => {
-                        let name = form.name.clone();
-                        let description = form.description.text();
+                    ItemBox::NewGroup => {
                         Task::perform(
-                            async move { create_group(pool, name, description).await.map(|_| ()) },
+                            async move { create_group(pool, name, description.text()).await.map(|_| ()) },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::EditGroup(form) => {
-                        let id = form.id;
-                        let name = form.name.clone();
-                        let description = form.description.text();
+                    ItemBox::EditGroup => {
                         Task::perform(
-                            async move { update_group(pool, id, name, description).await },
+                            async move { update_group(pool, id, name, description.text()).await },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::DeleteGroup(form) => {
-                        let id = form.id;
+                    ItemBox::DeleteGroup => {
                         Task::perform(
                             async move { delete_group(pool, id).await },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::NewCommand(form) => {
+                    ItemBox::NewCommand => {
                         let group_id = self.current_group.id;
-                        let content = form.content.clone();
-                        let description = form.description.text();
-                        let tags = form.tags.clone();
                         Task::perform(
                             async move {
-                                create_command(pool, group_id, content, description, tags)
+                                create_command(pool, group_id, name, description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::EditCommand(form) => {
-                        let id = form.id;
-                        let content = form.content.clone();
-                        let description = form.description.text();
-                        let tags = form.tags.clone();
+                    ItemBox::EditCommand => {
                         Task::perform(
                             async move {
-                                update_command(pool, id, content, description, tags)
+                                update_command(pool, id, name, description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::DeleteCommand(form) => {
-                        let id = form.id;
+                    ItemBox::DeleteCommand => {
                         Task::perform(
                             async move { delete_command(pool, id).await },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::NewScript(form) => {
+                    ItemBox::NewScript => {
                         let group_id = self.current_group.id;
-                        let name = form.name.clone();
-                        let content = form.content.text();
-                        let description = form.description.text();
-                        let tags = form.tags.clone();
                         Task::perform(
                             async move {
-                                create_script(pool, group_id, name, content, description, tags)
+                                create_script(pool, group_id, name, content.text(), description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::EditScript(form) => {
-                        let id = form.id;
-                        let name = form.name.clone();
-                        let content = form.content.text();
-                        let description = form.description.text();
-                        let tags = form.tags.clone();
+                    ItemBox::EditScript => {
                         Task::perform(
                             async move {
-                                update_script(pool, id, name, content, description, tags)
+                                update_script(pool, id, name, content.text(), description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::DeleteScript(form) => {
-                        let id = form.id;
+                    ItemBox::DeleteScript => {
                         Task::perform(
                             async move { delete_script(pool, id).await },
                             DashboardMessage::ItemBoxDone,
                         )
-                    }
+                    },
                     _ => Task::none(),
                 }
-            },
-            DashboardMessage::CloseItemBox => {
-                self.item_box = ItemBox::None;
-                self.item_error = None;
-                Task::none()
             },
             DashboardMessage::ItemBoxDone(result) => {
                 match result {
                     Ok(()) => {
                         match self.item_box {
-                            ItemBox::NewGroup(_) | ItemBox::EditGroup(_) | ItemBox::DeleteGroup(_) => {
-                                self.item_box = ItemBox::None;
-                                self.item_error = None;
-                                Task::done(DashboardMessage::GroupNavigatorMessage(GroupNavigatorMessage::ReloadGroupNavigator))
+                            ItemBox::NewGroup | ItemBox::EditGroup | ItemBox::DeleteGroup => {
+                                Task::done(DashboardMessage::CloseItemBox)
+                                    .chain(Task::done(DashboardMessage::GroupNavigatorMessage(GroupNavigatorMessage::ReloadGroupNavigator)))
                             },
-                            ItemBox::NewCommand(_) | ItemBox::EditCommand(_) | ItemBox::DeleteCommand(_)
-                            | ItemBox::NewScript(_) | ItemBox::EditScript(_) | ItemBox::DeleteScript(_) => {
-                                self.item_box = ItemBox::None;
-                                self.item_error = None;
-                                Task::done(DashboardMessage::GroupMessage(GroupMessage::ReloadGroup))
+                            ItemBox::NewCommand | ItemBox::EditCommand | ItemBox::DeleteCommand
+                            | ItemBox::NewScript | ItemBox::EditScript | ItemBox::DeleteScript => {
+                                Task::done(DashboardMessage::CloseItemBox)
+                                    .chain(Task::done(DashboardMessage::GroupMessage(GroupMessage::ReloadGroup)))
                             },
                             _ => Task::none(),
                         }
@@ -726,11 +605,11 @@ impl Dashboard {
                 None => Task::none(),
             },
             DashboardMessage::GroupNavigatorMessage(group_navigator_m) => match &mut self.group_navigator {
-                Some(group_navigator) => group_navigator.update(group_navigator_m, &mut self.current_group, &mut self.item_box).map(|m| DashboardMessage::GroupNavigatorMessage(m)),
+                Some(group_navigator) => group_navigator.update(group_navigator_m, &mut self.current_group, &mut self.item_box, &mut self.item_form).map(|m| DashboardMessage::GroupNavigatorMessage(m)),
                 None => Task::none(),
             },
             DashboardMessage::GroupMessage(group_m) => match &mut self.group {
-                Some(group) => group.update(group_m, &mut self.current_group, &mut self.item_box).map(|m| DashboardMessage::GroupMessage(m)),
+                Some(group) => group.update(group_m, &mut self.current_group, &mut self.item_box, &mut self.item_form).map(|m| DashboardMessage::GroupMessage(m)),
                 None => Task::none(),
             },
             DashboardMessage::StatusBarMessage(status_bar_m) => match &mut self.status_bar {

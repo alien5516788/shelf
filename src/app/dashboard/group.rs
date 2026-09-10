@@ -8,7 +8,7 @@ use sqlx::SqlitePool;
 use sqlx::types::chrono::NaiveDateTime;
 
 use crate::app::dashboard::group::GroupMessage::ReloadGroup;
-use crate::app::dashboard::{GroupInfo, ItemBox, GroupForm, CommandForm, ScriptForm};
+use crate::app::dashboard::{GroupInfo, ItemBox, ItemForm};
 use crate::icon;
 
 use crate::services::command::load_commands_for_group;
@@ -313,7 +313,7 @@ impl Group {
         .into()
     }
 
-    pub fn update(&mut self, message: GroupMessage, current_group: &mut GroupInfo, item_box: &mut ItemBox) -> Task<GroupMessage> {
+    pub fn update(&mut self, message: GroupMessage, current_group: &mut GroupInfo, item_box: &mut ItemBox, item_form: &mut ItemForm) -> Task<GroupMessage> {
         match message {
             GroupMessage::LoadGroup(pool) => {
                 self.pool = Some(pool.clone());
@@ -437,83 +437,89 @@ impl Group {
                 self.script_list = scripts;
                 Task::none()
             },
-            GroupMessage::OpenEditGroupBox(group_info) => {
-                *item_box = ItemBox::EditGroup(GroupForm {
-                    id: group_info.id,
-                    name: group_info.name,
-                    description: Content::with_text(&group_info.description)
-                });
+            GroupMessage::OpenEditGroupBox(group) => {
+                *item_box = ItemBox::EditGroup;
+                *item_form = ItemForm {
+                    id: Some(group.id),
+                    name: Some(group.name),
+                    description: Some(Content::new()),
+                    ..Default::default()
+                };
                 Task::none()
             },
-            GroupMessage::OpenDeleteGroupBox(group_info) => {
-                *item_box = ItemBox::DeleteGroup(GroupForm {
-                    id: group_info.id,
-                    name: group_info.name,
-                    description: Content::with_text(&group_info.description)
-                });
+            GroupMessage::OpenDeleteGroupBox(group) => {
+                *item_box = ItemBox::DeleteGroup;
+                *item_form = ItemForm {
+                    id: Some(group.id),
+                    name: Some(group.name),
+                    ..Default::default()
+                };
                 Task::none()
             },
             GroupMessage::OpenNewCommandBox => {
-                *item_box = ItemBox::NewCommand(CommandForm {
-                    id: -1,
-                    content: String::new(),
-                    description: Content::new(),
-                    tag: String::new(),
-                    tags: Vec::new(),
-                });
+                *item_box = ItemBox::NewCommand;
+                *item_form = ItemForm {
+                    name: Some(String::new()),
+                    description: Some(Content::new()),
+                    tag: Some(String::new()),
+                    tags: Some(Vec::new()),
+                    ..Default::default()
+                };
                 Task::none()
             },
-            GroupMessage::OpenEditCommandBox(command_info) => {
-                *item_box = ItemBox::EditCommand(CommandForm {
-                    id: command_info.id,
-                    content: command_info.content,
-                    description: Content::with_text(&command_info.description),
-                    tag: String::new(),
-                    tags: command_info.tags,
-                });
+            GroupMessage::OpenEditCommandBox(command) => {
+                *item_box = ItemBox::EditCommand;
+                *item_form = ItemForm {
+                    id: Some(command.id),
+                    name: Some(command.content),
+                    description: Some(Content::with_text(&command.description)),
+                    tag: Some(String::new()),
+                    tags: Some(command.tags),
+                    ..Default::default()
+                };
                 Task::none()
             },
-            GroupMessage::OpenDeleteCommandBox(command_info) => {
-                *item_box = ItemBox::DeleteCommand(CommandForm {
-                    id: command_info.id,
-                    content: command_info.content,
-                    description: Content::with_text(&command_info.description),
-                    tag: String::new(),
-                    tags: command_info.tags,
-                });
+            GroupMessage::OpenDeleteCommandBox(command) => {
+                *item_box = ItemBox::DeleteCommand;
+                *item_form = ItemForm {
+                    id: Some(command.id),
+                    name: Some(command.content),
+                    ..Default::default()
+                };
                 Task::none()
             },
             GroupMessage::OpenNewScriptBox => {
-                *item_box = ItemBox::NewScript(ScriptForm {
-                    id: -1,
-                    name: String::new(),
-                    content: Content::new(),
-                    description: Content::new(),
-                    tag: String::new(),
-                    tags: Vec::new(),
-                });
+                *item_box = ItemBox::NewScript;
+                *item_form = ItemForm {
+                    name: Some(String::new()),
+                    content: Some(Content::new()),
+                    description: Some(Content::new()),
+                    tag: Some(String::new()),
+                    tags: Some(Vec::new()),
+                    ..Default::default()
+                };
                 Task::none()
             },
-            GroupMessage::OpenEditScriptBox(script_info) => {
-                *item_box = ItemBox::EditScript(ScriptForm {
-                    id: script_info.id,
-                    name: script_info.name.clone(),
-                    content: Content::with_text(&script_info.content),
-                    description: Content::with_text(&script_info.description),
-                    tag: String::new(),
-                    tags: script_info.tags,
-                });
+            GroupMessage::OpenEditScriptBox(script) => {
+                *item_box = ItemBox::EditScript;
+                *item_form = ItemForm {
+                    id: Some(script.id),
+                    name: Some(script.name),
+                    content: Some(Content::with_text(&script.content)),
+                    description: Some(Content::with_text(&script.description)),
+                    tag: Some(String::new()),
+                    tags: Some(script.tags),
+                    ..Default::default()
+                };
                 Task::none()
             },
-            GroupMessage::OpenDeleteScriptBox(script_info) => {
-                *item_box = ItemBox::DeleteScript(ScriptForm {
-                    id: script_info.id,
-                    name: script_info.name.clone(),
-                    content: Content::with_text(&script_info.content),
-                    description: Content::with_text(&script_info.description),
-                    tag: String::new(),
-                    tags: script_info.tags,
-                });
+            GroupMessage::OpenDeleteScriptBox(script) => {
+                *item_box = ItemBox::DeleteScript;
+                *item_form = ItemForm {
+                    id: Some(script.id),
+                    name: Some(script.name),
+                    ..Default::default()
+                };
                 Task::none()
             },
         }
