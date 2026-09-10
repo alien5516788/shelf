@@ -5,9 +5,8 @@ use iced::{Alignment, Background, Border, Color, Element, Length, Task};
 use iced::widget::{space, button, column, container, row, text};
 use sqlx::SqlitePool;
 
-use crate::app::dashboard::group_navigator::GroupNavigatorMessage::ReloadGroupNavigator;
 use crate::icon;
-use crate::services::group::{load_groups};
+use crate::services::group::{GroupRow, load_groups};
 use crate::utils::formatting::clamp_name;
 use super::{GroupInfo, ItemBox, ItemForm};
 
@@ -22,11 +21,13 @@ pub struct GroupNavigator {
 
 #[derive(Debug, Clone)]
 pub enum GroupNavigatorMessage {
-    LoadGroupNavigator(Arc<SqlitePool>),
-    ReloadGroupNavigator,
-    SetGroupList(Vec<GroupInfo>),
+    SetPool(Arc<SqlitePool>),
+    LoadGroupNavigator,
+    SetGroupList(Result<Vec<GroupRow>, String>),
+
     ToggleGroupNavigatorOpen,
     SetCurrentGroup(GroupInfo),
+
     OpenNewGroupBox,
 }
 
@@ -39,7 +40,7 @@ impl GroupNavigator {
                 pool: None,
             },
 
-            Task::done(GroupNavigatorMessage::LoadGroupNavigator(pool))
+            Task::done(GroupNavigatorMessage::SetPool(pool))
         )
     }
 
@@ -190,60 +191,34 @@ impl GroupNavigator {
 
     pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo, item_box: &mut ItemBox, item_form: &mut ItemForm) -> Task<GroupNavigatorMessage> {
         match message {
-            GroupNavigatorMessage::LoadGroupNavigator(pool) => {
+            GroupNavigatorMessage::SetPool(pool) => {
                 self.pool = Some(pool.clone());
+                Task::done(GroupNavigatorMessage::LoadGroupNavigator)
+            },
+            GroupNavigatorMessage::LoadGroupNavigator => {
+                let pool = match self.pool.clone() {
+                    Some(pool) => pool,
+                    None => return Task::none(),
+                };
 
                 Task::perform(
-                    load_groups(pool),
-                    |groups| match groups {
-                        Ok(groups) => GroupNavigatorMessage::SetGroupList(
-                            groups
-                                .into_iter()
-                                .map(|group| GroupInfo {
-                                    id: group.id,
-                                    name: group.name,
-                                    description: group.description,
-                                    item_count: group.item_count as usize,
-                                })
-                                .collect()
-                        ),
-                        Err(e) => {
-                            eprintln!("Failed to load groups: {}", e);
-                            GroupNavigatorMessage::SetGroupList(Vec::from([]))
-                        },
-                    }
+                    load_groups(pool.clone()),
+                    GroupNavigatorMessage::SetGroupList
                 )
             },
-            ReloadGroupNavigator => {
-                match &self.pool {
-                    Some(pool) => {
-                        Task::perform(
-                            load_groups(pool.clone()),
-                            |groups| match groups {
-                                Ok(groups) => GroupNavigatorMessage::SetGroupList(
-                                    groups
-                                        .into_iter()
-                                        .map(|group| GroupInfo {
-                                            id: group.id,
-                                            name: group.name,
-                                            description: group.description,
-                                            item_count: group.item_count as usize,
-                                        })
-                                        .collect()
-                                ),
-                                Err(e) => {
-                                    eprintln!("Failed to load groups: {}", e);
-                                    GroupNavigatorMessage::SetGroupList(Vec::from([]))
-                                },
-                            }
-                        )
-                    },
-                    None => Task::none()
-                }
-            }
             GroupNavigatorMessage::SetGroupList(groups) => {
-                self.group_list = groups;
+                match groups {
+                    Ok(groups) => self.group_list = Self::group_row_to_group_info(groups),
+                    Err(e) => {
+                        eprintln!("Failed to load groups: {}", e);
+                        self.group_list = Vec::new()
+                    },
+                }
 
+                // Set current group
+
+                // Check if current group is not deleted in new list
+                // TODO: Two iterations, try optimizing this
                 let current_group_match = self.group_list
                     .iter()
                     .find(|group| current_group.id == group.id);
@@ -251,13 +226,11 @@ impl GroupNavigator {
                 match current_group_match {
                     Some(group) => *current_group = group.clone(),
                     None => match self.group_list.first() {
+                        // Current group is deleted in new list
+                        // Setting first group as current group
                         Some(first) => *current_group = first.clone(),
-                        None => *current_group = GroupInfo {
-                            id: 0,
-                            name: "".to_string(),
-                            description: "".to_string(),
-                            item_count: 0
-                        }
+                        // Group list is empty
+                        None => *current_group = GroupInfo::default()
                     }
                 }
 
@@ -267,8 +240,9 @@ impl GroupNavigator {
                 self.group_navigator_open = !self.group_navigator_open;
                 Task::none()
             },
-            GroupNavigatorMessage::SetCurrentGroup(current_grp) => {
-                *current_group = current_grp;
+            GroupNavigatorMessage::SetCurrentGroup(current_g) => {
+                *current_group = current_g;
+                // ISSUE: Group must be reloaded to update the group content
                 Task::none()
             },
             GroupNavigatorMessage::OpenNewGroupBox => {
@@ -281,5 +255,17 @@ impl GroupNavigator {
                 Task::none()
             },
         }
+    }
+
+    fn group_row_to_group_info(groups: Vec<GroupRow>) -> Vec<GroupInfo> {
+        groups
+            .into_iter()
+            .map(|group| GroupInfo {
+                id: group.id,
+                name: group.name,
+                description: group.description,
+                item_count: group.item_count as usize,
+            })
+            .collect()
     }
 }

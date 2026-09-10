@@ -72,7 +72,7 @@ pub async fn create_script(
     let result = sqlx::query(
         r#"
         INSERT INTO scripts (group_id, name, content, description)
-        VALUES (?, ?, ?)
+        VALUES (?, ?, ?, ?)
         "#,
     )
     .bind(group_id)
@@ -94,7 +94,7 @@ pub async fn create_script(
             "INSERT OR IGNORE INTO script_tags (script_id, name) VALUES (?, ?)",
         )
         .bind(id)
-        .bind(&tag)
+        .bind(tag)
         .execute(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;

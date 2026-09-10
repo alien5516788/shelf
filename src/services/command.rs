@@ -26,6 +26,7 @@ pub async fn load_commands_for_group(pool: Arc<SqlitePool>, group_id: i32,) -> R
     .map_err(|e| e.to_string())?;
 
     let mut out = Vec::with_capacity(rows.len());
+    
     for row in rows {
         let tags = load_command_tags(pool.clone(), row.id).await?;
         out.push((row, tags));
@@ -66,8 +67,8 @@ pub async fn create_command(
         "#,
     )
     .bind(group_id)
-    .bind(&content)
-    .bind(&description)
+    .bind(content)
+    .bind(description)
     .execute(&mut *tx)
     .await
     .map_err(|e| e.to_string())?;
@@ -83,7 +84,7 @@ pub async fn create_command(
             "INSERT OR IGNORE INTO command_tags (command_id, name) VALUES (?, ?)",
         )
         .bind(id)
-        .bind(&tag)
+        .bind(tag)
         .execute(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;
@@ -114,8 +115,8 @@ pub async fn update_command(
         WHERE id = ?
         "#,
     )
-    .bind(&content)
-    .bind(&description)
+    .bind(content)
+    .bind(description)
     .bind(id)
     .execute(&mut *tx)
     .await
@@ -136,7 +137,7 @@ pub async fn update_command(
             "INSERT OR IGNORE INTO command_tags (command_id, name) VALUES (?, ?)",
         )
         .bind(id)
-        .bind(&tag)
+        .bind(tag)
         .execute(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;

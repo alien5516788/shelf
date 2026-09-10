@@ -40,7 +40,7 @@ pub struct Dashboard {
     pub pool: Option<Arc<SqlitePool>>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GroupInfo {
     pub id: i32,
     pub name: String,
@@ -99,12 +99,7 @@ impl Dashboard {
     pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<DashboardMessage>) {
         (
             Self {
-                current_group: GroupInfo {
-                    id: 0,
-                    name: "".to_string(),
-                    description: "".to_string(),
-                    item_count: 0,
-                },
+                current_group: GroupInfo::default(),
                 item_box: ItemBox::None,
                 item_form: ItemForm::default(),
                 item_error: None,
@@ -349,7 +344,13 @@ impl Dashboard {
                         ],
                         _ => column![
                             match &self.item_form.name {
-                                Some(name) => text_input_view("Name", name, false, |name| DashboardMessage::SetItemFormName(name)),
+                                Some(name) => text_input_view(
+                                    match self.item_box {
+                                        ItemBox::NewCommand | ItemBox::EditCommand => "Content",
+                                        _ => "Name",
+                                    },
+                                    name, false, |name| DashboardMessage::SetItemFormName(name)
+                                ),
                                 None => space().into(),
                             },
                             match &self.item_form.content {
@@ -582,14 +583,15 @@ impl Dashboard {
                 match result {
                     Ok(()) => {
                         match self.item_box {
-                            ItemBox::NewGroup | ItemBox::EditGroup | ItemBox::DeleteGroup => {
+                            ItemBox::NewGroup | ItemBox::DeleteGroup => {
                                 Task::done(DashboardMessage::CloseItemBox)
-                                    .chain(Task::done(DashboardMessage::GroupNavigatorMessage(GroupNavigatorMessage::ReloadGroupNavigator)))
+                                    .chain(Task::done(DashboardMessage::GroupNavigatorMessage(GroupNavigatorMessage::LoadGroupNavigator)))
                             },
                             ItemBox::NewCommand | ItemBox::EditCommand | ItemBox::DeleteCommand
-                            | ItemBox::NewScript | ItemBox::EditScript | ItemBox::DeleteScript => {
+                            | ItemBox::NewScript | ItemBox::EditScript | ItemBox::DeleteScript
+                            | ItemBox::EditGroup => {
                                 Task::done(DashboardMessage::CloseItemBox)
-                                    .chain(Task::done(DashboardMessage::GroupMessage(GroupMessage::ReloadGroup)))
+                                    .chain(Task::done(DashboardMessage::GroupMessage(GroupMessage::LoadGroup)))
                             },
                             _ => Task::none(),
                         }

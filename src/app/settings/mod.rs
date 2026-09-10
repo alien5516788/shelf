@@ -14,7 +14,8 @@ pub struct Settings {
 
 #[derive(Debug, Clone)]
 pub enum SettingsMessage {
-    LoadSettings(Arc<SqlitePool>),
+    SetPool(Arc<SqlitePool>),
+    LoadSettings,
     SetScreen(Screen),
 }
 
@@ -24,7 +25,8 @@ impl Settings {
             Self {
                 pool: None,
             },
-            Task::done(SettingsMessage::LoadSettings(pool)),
+
+            Task::done(SettingsMessage::SetPool(pool)),
         )
     }
 
@@ -41,8 +43,16 @@ impl Settings {
 
     pub fn update(&mut self, message: SettingsMessage, screen: &mut Screen) -> Task<SettingsMessage> {
         match message {
-            SettingsMessage::LoadSettings(pool) => {
+            SettingsMessage::SetPool(pool) => {
                 self.pool = Some(pool);
+                Task::done(SettingsMessage::LoadSettings)
+            },
+            SettingsMessage::LoadSettings => {
+                let _pool = match self.pool.clone() {
+                    Some(pool) => pool,
+                    None => return Task::none(),
+                };
+
                 Task::none()
             },
             SettingsMessage::SetScreen(scrn) => {

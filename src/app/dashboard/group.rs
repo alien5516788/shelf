@@ -7,12 +7,10 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Length, Task};
 use sqlx::SqlitePool;
 use sqlx::types::chrono::NaiveDateTime;
 
-use crate::app::dashboard::group::GroupMessage::ReloadGroup;
 use crate::app::dashboard::{GroupInfo, ItemBox, ItemForm};
 use crate::icon;
-
-use crate::services::command::load_commands_for_group;
-use crate::services::script::load_scripts_for_group;
+use crate::services::command::{CommandRow, load_commands_for_group};
+use crate::services::script::{ScriptRow, load_scripts_for_group};
 
 
 #[derive(Debug, Clone)]
@@ -47,10 +45,10 @@ pub struct ScriptInfo {
 
 #[derive(Debug, Clone)]
 pub enum GroupMessage {
-    LoadGroup(Arc<SqlitePool>),
-    ReloadGroup,
-    SetCommandList(Vec<CommandInfo>),
-    SetScriptList(Vec<ScriptInfo>),
+    SetPool(Arc<SqlitePool>),
+    LoadGroup,
+    SetCommandList(Result<Vec<(CommandRow, Vec<String>)>, String>),
+    SetScriptList(Result<Vec<(ScriptRow, Vec<String>)>, String>),
 
     OpenEditGroupBox(GroupInfo),
     OpenDeleteGroupBox(GroupInfo),
@@ -72,7 +70,7 @@ impl Group {
                 pool: None,
             },
 
-            Task::done(GroupMessage::LoadGroup(pool)),
+            Task::done(GroupMessage::SetPool(pool)),
         )
     }
 
@@ -315,126 +313,45 @@ impl Group {
 
     pub fn update(&mut self, message: GroupMessage, current_group: &mut GroupInfo, item_box: &mut ItemBox, item_form: &mut ItemForm) -> Task<GroupMessage> {
         match message {
-            GroupMessage::LoadGroup(pool) => {
-                self.pool = Some(pool.clone());
-
-                Task::batch([
-                    Task::perform(
-                        load_commands_for_group(pool.clone(), current_group.id),
-                        |commands| match commands {
-                            Ok(commands) => GroupMessage::SetCommandList(
-                                commands.into_iter().map(|(command, tags)| CommandInfo {
-                                    id: command.id,
-                                    content: command.content,
-                                    description: command.description,
-                                    is_favourite: match command.is_favourite {
-                                        0 => false,
-                                        _ => true,
-                                    },
-                                    last_used_at: command.last_used_at.as_ref().and_then(|s| {
-                                        NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
-                                    }),
-                                    tags: tags,
-                                }).collect()
-                            ),
-                            Err(e) => {
-                                eprintln!("Failed to load commands: {}", e);
-                                GroupMessage::SetCommandList(Vec::from([]))
-                            },
-                        }
-                    ),
-                    Task::perform(
-                        load_scripts_for_group(pool, current_group.id),
-                        |scripts| match scripts {
-                            Ok(scripts) => GroupMessage::SetScriptList(
-                                scripts.into_iter().map(|(script, tags)| ScriptInfo {
-                                    id: script.id,
-                                    name: script.name,
-                                    content: script.content,
-                                    description: script.description,
-                                    is_favourite: match script.is_favourite {
-                                        0 => false,
-                                        _ => true,
-                                    },
-                                    last_used_at: script.last_used_at.as_ref().and_then(|s| {
-                                        NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
-                                    }),
-                                    tags: tags,
-                                }).collect()
-                            ),
-                            Err(e) => {
-                                eprintln!("Failed to load scripts: {}", e);
-                                GroupMessage::SetScriptList(Vec::from([]))
-                            },
-                        }
-                    ),
-                ])
+            GroupMessage::SetPool(pool) => {
+                self.pool = Some(pool);
+                Task::done(GroupMessage::LoadGroup)
             },
-            ReloadGroup => {
-                // TODO: Remove dupliacte later
-                //
-                let Some(pool) = self.pool.clone() else {
-                    return Task::none();
+            GroupMessage::LoadGroup => {
+                let pool = match self.pool.clone() {
+                    Some(pool) => pool,
+                    None => return Task::none(),
                 };
 
                 Task::batch([
                     Task::perform(
                         load_commands_for_group(pool.clone(), current_group.id),
-                        |commands| match commands {
-                            Ok(commands) => GroupMessage::SetCommandList(
-                                commands.into_iter().map(|(command, tags)| CommandInfo {
-                                    id: command.id,
-                                    content: command.content,
-                                    description: command.description,
-                                    is_favourite: match command.is_favourite {
-                                        0 => false,
-                                        _ => true,
-                                    },
-                                    last_used_at: command.last_used_at.as_ref().and_then(|s| {
-                                        NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
-                                    }),
-                                    tags: tags,
-                                }).collect()
-                            ),
-                            Err(e) => {
-                                eprintln!("Failed to load commands: {}", e);
-                                GroupMessage::SetCommandList(Vec::from([]))
-                            },
-                        }
+                        GroupMessage::SetCommandList
                     ),
                     Task::perform(
                         load_scripts_for_group(pool, current_group.id),
-                        |scripts| match scripts {
-                            Ok(scripts) => GroupMessage::SetScriptList(
-                                scripts.into_iter().map(|(script, tags)| ScriptInfo {
-                                    id: script.id,
-                                    name: script.name,
-                                    content: script.content,
-                                    description: script.description,
-                                    is_favourite: match script.is_favourite {
-                                        0 => false,
-                                        _ => true,
-                                    },
-                                    last_used_at: script.last_used_at.as_ref().and_then(|s| {
-                                        NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
-                                    }),
-                                    tags: tags,
-                                }).collect()
-                            ),
-                            Err(e) => {
-                                eprintln!("Failed to load scripts: {}", e);
-                                GroupMessage::SetScriptList(Vec::from([]))
-                            },
-                        }
+                        GroupMessage::SetScriptList
                     ),
                 ])
             },
             GroupMessage::SetCommandList(commands) => {
-                self.command_list = commands;
+                match commands {
+                    Ok(commands) => self.command_list = Self::command_row_to_command_info(commands),
+                    Err(e) => {
+                        eprintln!("Failed to load commands: {}", e);
+                        self.command_list = Vec::new();
+                    },
+                }
                 Task::none()
             },
             GroupMessage::SetScriptList(scripts) => {
-                self.script_list = scripts;
+                match scripts {
+                    Ok(scripts) => self.script_list = Self::script_row_to_script_info(scripts),
+                    Err(e) => {
+                        eprintln!("Failed to load scripts: {}", e);
+                        self.script_list = Vec::new()
+                    },
+                }
                 Task::none()
             },
             GroupMessage::OpenEditGroupBox(group) => {
@@ -523,5 +440,42 @@ impl Group {
                 Task::none()
             },
         }
+    }
+
+    fn command_row_to_command_info(commands: Vec<(CommandRow, Vec<String>)>) -> Vec<CommandInfo> {
+        commands
+            .into_iter()
+            .map(|(command, tags)| CommandInfo {
+                id: command.id,
+                content: command.content,
+                description: command.description,
+                is_favourite: match command.is_favourite {
+                    0 => false,
+                    _ => true,
+                },
+                last_used_at: command.last_used_at.as_ref().and_then(|s| {
+                    NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
+                }),
+                tags: tags,
+            })
+            .collect()
+    }
+
+    fn script_row_to_script_info(scripts: Vec<(ScriptRow, Vec<String>)>) -> Vec<ScriptInfo> {
+        scripts.into_iter().map(|(script, tags)| ScriptInfo {
+            id: script.id,
+            name: script.name,
+            content: script.content,
+            description: script.description,
+            is_favourite: match script.is_favourite {
+                0 => false,
+                _ => true,
+            },
+            last_used_at: script.last_used_at.as_ref().and_then(|s| {
+                NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
+            }),
+            tags: tags,
+        })
+        .collect()
     }
 }
