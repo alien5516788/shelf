@@ -134,12 +134,7 @@ impl GroupNavigator {
                 false => Length::Fixed(60.0),
             }
         )
-        .padding(Padding {
-            top: 10.0,
-            right: 0.0, // Filled by the scrollable
-            bottom: 10.0,
-            left: 10.0,
-        })
+        .padding(10)
         .style(|_| container::Style {
             border: Border {
                 color: Color::from_rgb(0.4, 0.4, 0.4),

@@ -4,7 +4,7 @@ use iced::font::{Family, Style};
 use iced::widget::text::{Span, Wrapping};
 use iced::widget::text_editor::Content;
 use iced::widget::{Column, Row, button, center_x, column, container, mouse_area, rich_text, row, scrollable, space, text};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length, Padding, Task};
+use iced::{Alignment, Background, Border, Color, Element, Font, Length, Task};
 use sqlx::SqlitePool;
 use sqlx::types::chrono::NaiveDateTime;
 
@@ -16,6 +16,7 @@ use crate::services::script::{ScriptRow, load_scripts_for_group};
 
 #[derive(Debug, Clone)]
 pub struct Group {
+    description_collapsed: bool,
     command_list: Vec<CommandInfo>,
     script_list: Vec<ScriptInfo>,
     item_hovered: Option<(char, i32)>, // ('c'/'s', id)
@@ -54,6 +55,7 @@ pub enum ItemInfo<'a> {
 pub enum GroupMessage {
     SetPool(Arc<SqlitePool>),
     LoadGroup,
+    ToggleDescriptionCollapsed,
     SetCommandList(Result<Vec<(CommandRow, Vec<String>)>, String>),
     SetScriptList(Result<Vec<(ScriptRow, Vec<String>)>, String>),
     SetItemHovered(Option<(char, i32)>), // Make the type formal
@@ -73,6 +75,7 @@ impl Group {
     pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<GroupMessage>) {
         (
             Self {
+                description_collapsed: true,
                 command_list: Vec::new(),
                 script_list: Vec::new(),
                 item_hovered: None,
@@ -201,37 +204,55 @@ impl Group {
                         },
                         ..Default::default()
                     }),
-
                 ],
 
                 // Group description and edit button
                 row![
                     // Description
+                    // TODO: Make a gradient overlay for collapsed description
                     container(
-                        match current_group.description.as_str() {
-                            "" => text("No description available")
-                                .color(Color::from_rgb(0.5, 0.5, 0.5))
-                                .font(Font {
-                                    family: Family::Monospace,
-                                    style: Style::Italic,
-                                    ..Default::default()
-                                }),
-                            description => text(description.to_string())
-                                .color(Color::from_rgb(0.9, 0.9, 0.9)),
-                        }
+                        row![
+                            container(match current_group.description.as_str() {
+                                "" => text("No description available")
+                                    .size(16)
+                                    .color(Color::from_rgb(0.5, 0.5, 0.5))
+                                    .font(Font {
+                                        family: Family::Monospace,
+                                        style: Style::Italic,
+                                        ..Default::default()
+                                    }),
+                                description => text(description.to_string())
+                                    .size(16)
+                                    .color(Color::from_rgb(0.9, 0.9, 0.9)),
+                            })
+                            .width(Length::Fill),
+
+                            button(match self.description_collapsed {
+                                true => icon::chevron_down()
+                                    .size(20.0)
+                                    .color(Color::from_rgb(0.5, 0.85, 0.9)),
+                                false => icon::chevron_up()
+                                    .size(20.0)
+                                    .color(Color::from_rgb(0.5, 0.85, 0.9)),
+                            })
+                            .on_press(GroupMessage::ToggleDescriptionCollapsed)
+                            .style(|_, _| button::Style {
+                                background: None,
+                                ..Default::default()
+                            }),
+                        ]
                     )
+                    .height(match self.description_collapsed {
+                        true => Length::Fixed(20.0 * 2.5),
+                        false => Length::Shrink,
+                    })
                     .width(Length::Fill)
                     .padding(10)
+                    .clip(true)
                     .style(|_| container::Style {
                         background: Some(Background::Color(Color::from_rgba(0.2, 0.2, 0.3, 0.5))),
                         ..Default::default()
                     }),
-
-                    // Space
-                    space()
-                        .width(10.0),
-
-
                 ],
 
                 // Item list
@@ -258,23 +279,12 @@ impl Group {
                         )
                     )
                 )
-                .padding(Padding {
-                    top: 0.0,
-                    right: 10.0,
-                    bottom: 0.0,
-                    left: 0.0,
-                })
             ]
             .spacing(15)
         )
         .height(Length::Fill)
         .width(Length::Fill)
-        .padding(Padding {
-            top: 10.0,
-            right: 0.0, // Filled by the scrollable
-            bottom: 10.0,
-            left: 10.0,
-        })
+        .padding(10)
         .style(|_| container::Style {
             border: Border {
                 color: Color::from_rgb(0.4, 0.4, 0.4),
@@ -509,6 +519,10 @@ impl Group {
                         GroupMessage::SetScriptList
                     ),
                 ])
+            },
+            GroupMessage::ToggleDescriptionCollapsed => {
+                self.description_collapsed = !self.description_collapsed;
+                Task::none()
             },
             GroupMessage::SetCommandList(commands) => {
                 match commands {
