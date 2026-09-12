@@ -1,7 +1,8 @@
-use iced::{Alignment, Border, Color, Element, Length, Task, Theme};
-use iced::widget::{button, container, row, text, text_input};
+use iced::{Alignment, Border, Color, Element, Length, Padding, Task, Theme};
+use iced::widget::{button, center_x, container, row, text, text_input};
 
 use crate::app::Screen;
+use crate::icon;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Navigator {
@@ -28,7 +29,7 @@ impl Navigator {
         )
     }
 
-    pub fn view(&self, title: String) -> Element<'_, NavigatorMessage> {
+    pub fn view(&self, title: String, theme: &Theme) -> Element<'_, NavigatorMessage> {
         container(
             row![
                 // App name
@@ -49,26 +50,49 @@ impl Navigator {
                     .on_press(NavigatorMessage::SetScreen(Screen::Home)),
 
                 // Search bar
-                container(
-                    text_input("Search...", self.search_query.as_str())
-                        .on_input(|s| NavigatorMessage::SetSearchQuery(s))
+                center_x(
+                    container(
+                        text_input("Search...", self.search_query.as_str())
+                            .on_input(|s| NavigatorMessage::SetSearchQuery(s))
+                            .padding(10)
+                    )
+                    .width(600)
+                    .align_y(Alignment::Center)
+                    .padding(5)
                 )
-                .width(Length::Fill)
-                .align_y(Alignment::Center)
-                .padding(5),
+                .width(Length::Fill),
 
                 // Shortcuts
                 row![
-                    button("⚙ Settings")
-                        .on_press(NavigatorMessage::SetScreen(Screen::Settings)),
-                    button("☀ Dark Mode")
-                        .on_press(NavigatorMessage::ToggleTheme),
+                    button(
+                        icon::settings()
+                            .size(20.0)
+                            .color(Color::from_rgb(0.5, 0.9, 0.9))
+                    )
+                    .style(|_, _| button::Style {
+                        background: None,
+                        ..Default::default()
+                    })
+                    .on_press(NavigatorMessage::SetScreen(Screen::Settings)),
+
+                    button(match theme {
+                        Theme::Dark => icon::moon()
+                            .size(20.0)
+                            .color(Color::from_rgb(0.5, 0.9, 0.9)),
+                        _ => icon::sun()
+                            .size(20.0)
+                            .color(Color::from_rgb(0.5, 0.5, 0.5)),
+                    })
+                    .style(|_, _| button::Style {
+                        background: None,
+                        ..Default::default()
+                    })
+                    .on_press(NavigatorMessage::ToggleTheme),
                 ]
                 .spacing(10),
             ]
             .align_y(Alignment::Center)
             .spacing(20)
-            .padding(10)
         )
         .style(|theme: &Theme| container::Style {
             border: Border {
@@ -79,7 +103,12 @@ impl Navigator {
             background: Some(iced::Background::Color(theme.palette().background)),
             ..Default::default()
         })
-        .height(70)
+        .padding(Padding {
+            top: 5.0,
+            right: 20.0,
+            bottom: 5.0,
+            left: 20.0
+        })
         .width(Length::Fill)
         .into()
     }

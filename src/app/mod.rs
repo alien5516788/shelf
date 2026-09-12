@@ -69,7 +69,7 @@ impl App {
                 None => loading_screen_view(),
             },
             Screen::Dashboard => match &self.dashboard {
-                Some(dashboard) => dashboard.view(&self.title).map(|m| AppMessage::DashboardMessage(m)),
+                Some(dashboard) => dashboard.view(&self.title, &self.theme).map(|m| AppMessage::DashboardMessage(m)),
                 None => loading_screen_view(),
             },
             Screen::Settings => match &self.settings {

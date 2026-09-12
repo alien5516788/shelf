@@ -116,7 +116,7 @@ impl Dashboard {
         )
     }
 
-    pub fn view(&self, title: &String) -> Element<'_, DashboardMessage> {
+    pub fn view(&self, title: &String, theme: &Theme) -> Element<'_, DashboardMessage> {
         let Some(navigator) = &self.navigator else {
             return loading_screen_view();
         };
@@ -135,7 +135,7 @@ impl Dashboard {
             column![
                 // Navigator
                 navigator
-                    .view(title.clone())
+                    .view(title.clone(), theme)
                     .map(DashboardMessage::NavigatorMessage),
 
                 // Group view
