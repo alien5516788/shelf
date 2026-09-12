@@ -5,38 +5,29 @@ use iced::widget::text::{Span, Wrapping};
 use iced::widget::text_editor::Content;
 use iced::widget::{Column, Row, button, center_x, column, container, mouse_area, rich_text, row, scrollable, space, text};
 use iced::{Alignment, Background, Border, Color, Element, Font, Length, Task};
+use iced::clipboard;
 use sqlx::SqlitePool;
 use sqlx::types::chrono::NaiveDateTime;
 
 use crate::app::dashboard::{GroupInfo, ItemBox, ItemForm};
 use crate::icon;
-use crate::services::command::{CommandRow, load_commands_for_group};
-use crate::services::script::{ScriptRow, load_scripts_for_group};
+use crate::services::item::{ItemRow, load_items_for_group, update_item_favourite, update_item_used};
 
 
 #[derive(Debug, Clone)]
 pub struct Group {
     description_collapsed: bool,
-    command_list: Vec<CommandInfo>,
-    script_list: Vec<ScriptInfo>,
-    item_hovered: Option<(char, i32)>, // ('c'/'s', id)
+    item_list: Vec<ItemInfo>,
+    filter: Filter,
+    item_hovered: Option<i32>,
 
     pool: Option<Arc<SqlitePool>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommandInfo {
+pub struct ItemInfo {
     pub id: i32,
-    pub content: String,
-    pub description: String,
-    pub is_favourite: bool,
-    pub last_used_at: Option<NaiveDateTime>,
-    pub tags: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ScriptInfo {
-    pub id: i32,
+    pub item_type: ItemType,
     pub name: String,
     pub content: String,
     pub description: String,
@@ -46,29 +37,36 @@ pub struct ScriptInfo {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ItemInfo<'a> {
-    Script(&'a ScriptInfo),
-    Command(&'a CommandInfo),
+pub enum ItemType {
+    Command,
+    Script,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Filter {
+    command: bool,
+    script: bool,
+    alphabetical: bool,
+}
+
 
 #[derive(Debug, Clone)]
 pub enum GroupMessage {
     SetPool(Arc<SqlitePool>),
     LoadGroup,
     ToggleDescriptionCollapsed,
-    SetCommandList(Result<Vec<(CommandRow, Vec<String>)>, String>),
-    SetScriptList(Result<Vec<(ScriptRow, Vec<String>)>, String>),
-    SetItemHovered(Option<(char, i32)>), // Make the type formal
-    CopyItemContent(String),
+    SetItemList(Result<Vec<(ItemRow, Vec<String>)>, String>),
+    SetFilter(Filter),
+    SetItemHovered(Option<i32>),
+    CopyItemContent(i32, String),
 
     OpenEditGroupBox(GroupInfo),
-    OpenNewCommandBox,
-    OpenEditCommandBox(CommandInfo),
-    OpenDeleteCommandBox(CommandInfo),
-    OpenNewScriptBox,
-    OpenEditScriptBox(ScriptInfo),
-    OpenDeleteScriptBox(ScriptInfo),
-    AddItemToFavourites((char, i32)), // Make the type formal
+    OpenNewItemBox(ItemType),
+    OpenEditItemBox(ItemInfo),
+    OpenDeleteItemBox(ItemInfo),
+    UpdateItemFavourite(i32, bool),
+    UpdateItemUsed(i32),
+    None,
 }
 
 impl Group {
@@ -76,9 +74,13 @@ impl Group {
         (
             Self {
                 description_collapsed: true,
-                command_list: Vec::new(),
-                script_list: Vec::new(),
+                item_list: Vec::new(),
                 item_hovered: None,
+                filter: Filter {
+                    command: true,
+                    script: true,
+                    alphabetical: true,
+                },
 
                 pool: None,
             },
@@ -105,105 +107,139 @@ impl Group {
                     //Filters
                     button(icon::square_terminal()
                         .size(20.0)
-                        .color(Color::from_rgb(0.5, 0.9, 0.9)))
-                        .style(|_, _| button::Style {
-                            background: None,
-                            ..Default::default()
-                        }),
+                        .color(match self.filter.command {
+                            true => Color::from_rgb(0.5, 0.9, 0.9),
+                            false => Color::from_rgb(0.3, 0.5, 1.0),
+                        })
+                    )
+                    .on_press(GroupMessage::SetFilter(Filter {
+                        command: !self.filter.command,
+                        ..self.filter
+                    }))
+                    .style(|_, _| button::Style {
+                        background: None,
+                        ..Default::default()
+                    }),
 
                     button(icon::code_xml()
                         .size(20.0)
-                        .color(Color::from_rgb(0.5, 0.9, 0.9)))
-                        .style(|_, _| button::Style {
-                            background: None,
-                            ..Default::default()
-                        }),
+                        .color(match self.filter.script {
+                            true => Color::from_rgb(0.5, 0.9, 0.9),
+                            false => Color::from_rgb(0.3, 0.5, 1.0),
+                        })
+                    )
+                    .on_press(GroupMessage::SetFilter(Filter {
+                        script: !self.filter.script,
+                        ..self.filter
+                    }))
+                    .style(|_, _| button::Style {
+                        background: None,
+                        ..Default::default()
+                    }),
+
+
                     button(icon::a_large_small()
                         .size(20.0)
-                        .color(Color::from_rgb(0.5, 0.9, 0.9)))
-                        .style(|_, _| button::Style {
-                            background: None,
-                            ..Default::default()
-                        }),
+                        .color(match self.filter.alphabetical {
+                            true => Color::from_rgb(0.5, 0.9, 0.9),
+                            false => Color::from_rgb(0.3, 0.5, 1.0),
+                        })
+                    )
+                    .on_press(GroupMessage::SetFilter(Filter {
+                        alphabetical: !self.filter.alphabetical,
+                        ..self.filter
+                    }))
+                    .style(|_, _| button::Style {
+                        background: None,
+                        ..Default::default()
+                    }),
 
                     // Space
                     space()
                         .width(Length::Fill),
 
-                    // Edit group
-                    button(
-                        column![
+                    if current_group.name.as_str() != "Favourites"
+                    && current_group.name.as_str() != "Recent"
+                    && current_group.name.as_str() != "Default" {
+                        row![
+                            // Edit group
+                            button(
+                                column![
+                                    space()
+                                        .height(5.0),
+
+                                    icon::pen()
+                                        .size(15.0)
+                                        .color(Color::from_rgb(0.5, 0.9, 0.9))
+                                ]
+                                .height(Length::Fill)
+                            )
+                            .on_press(GroupMessage::OpenEditGroupBox(current_group.clone()))
+                            .height(40.0)
+                            .padding(0)
+                            .style(|_, _| button::Style {
+                                background: None,
+                                ..Default::default()
+                            }),
+
                             space()
-                                .height(5.0),
+                                .width(Length::Fixed(20.0)),
 
-                            icon::pen()
-                                .size(15.0)
-                                .color(Color::from_rgb(0.5, 0.9, 0.9))
+                            // Add new command
+                            button(
+                                row![
+                                    icon::plus()
+                                        .size(20.0)
+                                        .color(Color::from_rgb(0.3, 0.9, 0.4)),
+
+                                    text("Command")
+                                        .color(Color::from_rgb(0.3, 0.9, 0.4)),
+                                ]
+                                .align_y(Alignment::Center)
+                                .spacing(10)
+                            )
+                            .on_press(GroupMessage::OpenNewItemBox(ItemType::Command))
+                            .style(|_, _| button::Style {
+                                background: None,
+                                border: Border {
+                                    color: Color::from_rgb(0.3, 0.9, 0.4),
+                                    width: 2.0,
+                                    radius: 4.into(),
+                                },
+                                ..Default::default()
+                            }),
+
+                            // Space
+                            space()
+                                .width(Length::Fixed(10.0)),
+
+                            // Add new script
+                            button(
+                                row![
+                                    icon::plus()
+                                        .size(20.0)
+                                        .color(Color::from_rgb(0.3, 0.9, 0.4)),
+
+                                    text("Script")
+                                        .color(Color::from_rgb(0.3, 0.9, 0.4)),
+                                ]
+                                .align_y(Alignment::Center)
+                                .spacing(10)
+                            )
+                            .on_press(GroupMessage::OpenNewItemBox(ItemType::Script))
+                            .style(|_, _| button::Style {
+                                background: None,
+                                border: Border {
+                                    color: Color::from_rgb(0.3, 0.9, 0.4),
+                                    width: 2.0,
+                                    radius: 4.into(),
+                                },
+                                ..Default::default()
+                            }),
                         ]
-                        .height(Length::Fill)
-                    )
-                    .on_press(GroupMessage::OpenEditGroupBox(current_group.clone()))
-                    .height(40.0)
-                    .padding(0)
-                    .style(|_, _| button::Style {
-                        background: None,
-                        ..Default::default()
-                    }),
-
-                    space()
-                        .width(Length::Fixed(20.0)),
-
-                    // Add new command
-                    button(
-                        row![
-                            icon::plus()
-                                .size(20.0)
-                                .color(Color::from_rgb(0.3, 0.9, 0.4)),
-
-                            text("Command")
-                                .color(Color::from_rgb(0.3, 0.9, 0.4)),
-                        ]
-                        .align_y(Alignment::Center)
-                        .spacing(10)
-                    )
-                    .on_press(GroupMessage::OpenNewCommandBox)
-                    .style(|_, _| button::Style {
-                        background: None,
-                        border: Border {
-                            color: Color::from_rgb(0.3, 0.9, 0.4),
-                            width: 2.0,
-                            radius: 4.into(),
-                        },
-                        ..Default::default()
-                    }),
-
-                    // Space
-                    space()
-                        .width(Length::Fixed(10.0)),
-
-                    // Add new script
-                    button(
-                        row![
-                            icon::plus()
-                                .size(20.0)
-                                .color(Color::from_rgb(0.3, 0.9, 0.4)),
-
-                            text("Script")
-                                .color(Color::from_rgb(0.3, 0.9, 0.4)),
-                        ]
-                        .align_y(Alignment::Center)
-                        .spacing(10)
-                    )
-                    .on_press(GroupMessage::OpenNewScriptBox)
-                    .style(|_, _| button::Style {
-                        background: None,
-                        border: Border {
-                            color: Color::from_rgb(0.3, 0.9, 0.4),
-                            width: 2.0,
-                            radius: 4.into(),
-                        },
-                        ..Default::default()
-                    }),
+                    } else {
+                        row![]
+                    }
                 ],
 
                 // Group description and edit button
@@ -259,23 +295,13 @@ impl Group {
                 container(
                     scrollable(
                         center_x(
-                            column![
-                                // Commands
-                                self.command_list
-                                    .iter()
-                                    .fold(
-                                        Column::new()
-                                            .spacing(10),
-                                        |column, command| column.push(Self::item_card_view(ItemInfo::Command(command), &self.item_hovered))),
-
-                                // Scripts
-                                self.script_list
-                                    .iter()
-                                    .fold(
-                                        Column::new()
-                                            .spacing(10),
-                                        |column, script| column.push(Self::item_card_view(ItemInfo::Script(script), &self.item_hovered))),
-                            ]
+                            self.item_list
+                                .iter()
+                                .fold(
+                                    Column::new()
+                                        .spacing(10),
+                                    |column, item| column.push(self.item_card_view(item)),
+                                )
                         )
                     )
                 )
@@ -296,32 +322,34 @@ impl Group {
         .into()
     }
 
-    fn item_card_view<'a>(item: ItemInfo<'a>, item_hovered: &'a Option<(char, i32)>) -> Element<'a, GroupMessage> {
+    fn item_card_view<'a>(&self, item: &'a ItemInfo) -> Element<'a, GroupMessage> {
         // Hovered state
-        let hovered = match item_hovered {
-            Some(id) => *id == match item {
-                ItemInfo::Command(command) => ('c', command.id),
-                ItemInfo::Script(script) => ('s', script.id),
-            },
-            None => false,
-        };
+        let hovered = self.item_hovered == Some(item.id);
 
-        let (icon, name, content, description, tags, is_favourite) = match item {
-            ItemInfo::Command(command) => (
-                icon::square_terminal(),
-                command.content.as_str(),
+        let (id, icon, name, content, description, tags, is_favourite) = match item.item_type {
+            ItemType::Command => (
+                item.id,
+                match hovered {
+                    true => icon::copy(),
+                    false => icon::square_terminal(),
+                },
+                &item.name,
                 None,
-                command.description.as_str(),
-                command.tags.iter().collect::<Vec<_>>(),
-                command.is_favourite,
+                &item.description,
+                item.tags.iter().collect::<Vec<_>>(),
+                item.is_favourite,
             ),
-            ItemInfo::Script(script) => (
-                icon::code_xml(),
-                script.name.as_str(),
-                Some(script.content.as_str()),
-                script.description.as_str(),
-                script.tags.iter().collect::<Vec<_>>(),
-                script.is_favourite,
+            ItemType::Script => (
+                item.id,
+                match hovered {
+                    true => icon::copy(),
+                    false => icon::code_xml(),
+                },
+                &item.name,
+                Some(&item.content),
+                &item.description,
+                item.tags.iter().collect::<Vec<_>>(),
+                item.is_favourite,
             ),
         };
 
@@ -350,27 +378,28 @@ impl Group {
                                 .width(Length::Fill)
                                 .spacing(8),
                             )
-                            .on_press(GroupMessage::CopyItemContent(name.to_string()))
+                            .on_press(GroupMessage::CopyItemContent(
+                                id,
+                                match item.item_type {
+                                    ItemType::Command => name.to_string(),
+                                    ItemType::Script => match content {
+                                        Some(content) => content.to_string(),
+                                        None => "".to_string(),
+                                    },
+                                }
+                            ))
                             .style(|_, _| button::Style { background: None, ..Default::default() }),
                         ]
                         .spacing(8)
                         .align_y(Alignment::Center),
 
                         // Content
-                        // Only for scripts
-                        button(
-                            text(match content {
-                                Some(content) => content,
-                                None => "",
-                            })
-                            .size(13)
-                            .color(Color::from_rgb(0.55, 0.55, 0.6)),
-                        )
-                        .on_press(GroupMessage::CopyItemContent(match content {
-                            Some(content) => content.to_string(),
-                            None => "".to_string(),
-                        }))
-                        .style(|_, _| button::Style { background: None, ..Default::default() }),
+                        text(match content {
+                            Some(content) => content,
+                            None => "",
+                        })
+                        .size(13)
+                        .color(Color::from_rgb(0.55, 0.55, 0.6)),
 
                         // Description
                         text(description)
@@ -417,12 +446,7 @@ impl Group {
                                         .size(16)
                                         .color(Color::from_rgb(1.0, 0.85, 0.3))
                                 )
-                                .on_press(GroupMessage::AddItemToFavourites(
-                                    match item {
-                                        ItemInfo::Command(_) => ('c', 0),
-                                        ItemInfo::Script(_) => ('s', 0),
-                                    }
-                                ))
+                                .on_press(GroupMessage::UpdateItemFavourite(id, false))
                                 .style(|_, _| button::Style { background: None, ..Default::default() })
                             ),
                             // If the item is not a favourite, hide the star icon but show the empty star icon on hover
@@ -433,12 +457,7 @@ impl Group {
                                             .size(16)
                                             .color(Color::from_rgb(0.45, 0.45, 0.5))
                                     )
-                                    .on_press(GroupMessage::AddItemToFavourites(
-                                        match item {
-                                            ItemInfo::Command(_) => ('c', 0),
-                                            ItemInfo::Script(_) => ('s', 0),
-                                        }
-                                    ))
+                                    .on_press(GroupMessage::UpdateItemFavourite(id, true))
                                     .style(|_, _| button::Style { background: None, ..Default::default() })
                                 ),
                                 false => container(space()),
@@ -450,17 +469,11 @@ impl Group {
                         match hovered {
                             true => column![
                                 button(icon::pen().size(14).color(Color::from_rgb(0.5, 0.85, 0.9)))
-                                    .on_press(match item {
-                                        ItemInfo::Command(command) => GroupMessage::OpenEditCommandBox(command.clone()),
-                                        ItemInfo::Script(script) => GroupMessage::OpenEditScriptBox(script.clone()),
-                                    })
+                                    .on_press(GroupMessage::OpenEditItemBox(item.clone()))
                                     .style(|_, _| button::Style { background: None, ..Default::default() }),
 
                                 button(icon::trash().size(14).color(Color::from_rgb(0.9, 0.35, 0.35)))
-                                    .on_press(match item {
-                                        ItemInfo::Command(command) => GroupMessage::OpenDeleteCommandBox(command.clone()),
-                                        ItemInfo::Script(script) => GroupMessage::OpenDeleteScriptBox(script.clone()),
-                                    })
+                                    .on_press(GroupMessage::OpenDeleteItemBox(item.clone()))
                                     .style(|_, _| button::Style { background: None, ..Default::default() })
                             ],
                             false => column![],
@@ -485,14 +498,7 @@ impl Group {
                 ..Default::default()
             })
         )
-        .on_enter(GroupMessage::SetItemHovered(
-            Some(
-                match item {
-                    ItemInfo::Command(command) => ('c', command.id),
-                    ItemInfo::Script(script) => ('s', script.id),
-                },
-            ),
-        ))
+        .on_enter(GroupMessage::SetItemHovered(Some(id)))
         .on_exit(GroupMessage::SetItemHovered(None))
         .into()
     }
@@ -508,165 +514,155 @@ impl Group {
                     Some(pool) => pool,
                     None => return Task::none(),
                 };
-
-                Task::batch([
-                    Task::perform(
-                        load_commands_for_group(pool.clone(), current_group.id),
-                        GroupMessage::SetCommandList
-                    ),
-                    Task::perform(
-                        load_scripts_for_group(pool, current_group.id),
-                        GroupMessage::SetScriptList
-                    ),
-                ])
+                Task::perform(
+                    load_items_for_group(pool.clone(), current_group.id, self.filter.command, self.filter.script),
+                    GroupMessage::SetItemList
+                )
             },
             GroupMessage::ToggleDescriptionCollapsed => {
                 self.description_collapsed = !self.description_collapsed;
                 Task::none()
             },
-            GroupMessage::SetCommandList(commands) => {
-                match commands {
-                    Ok(commands) => self.command_list = Self::command_row_to_command_info(commands),
+            GroupMessage::SetItemList(items) => {
+                match items {
+                    Ok(items) => self.item_list = Self::item_row_to_item_info(items),
                     Err(e) => {
-                        eprintln!("Failed to load commands: {}", e);
-                        self.command_list = Vec::new();
+                        eprintln!("Failed to load items: {}", e);
+                        self.item_list = Vec::new();
                     },
+                }
+                if self.filter.alphabetical {
+                    self.item_list.sort_by(|a, b| a.name.cmp(&b.name));
                 }
                 Task::none()
             },
-            GroupMessage::SetScriptList(scripts) => {
-                match scripts {
-                    Ok(scripts) => self.script_list = Self::script_row_to_script_info(scripts),
-                    Err(e) => {
-                        eprintln!("Failed to load scripts: {}", e);
-                        self.script_list = Vec::new()
-                    },
-                }
-                Task::none()
-            },
+            GroupMessage::SetFilter(filter) => {
+                // ISSUE: No items present when both command and script filters are enabled
+                self.filter = filter;
+                Task::done(GroupMessage::LoadGroup)
+            }
             GroupMessage::SetItemHovered(hovered) => {
                 self.item_hovered = hovered;
                 Task::none()
             },
-            GroupMessage::CopyItemContent(content) => {
-                // TODO
-                println!("Copied: {}", content);
-                Task::none()
+            GroupMessage::CopyItemContent(id, content) => {
+                Task::batch([
+                    clipboard::write(content),
+                    Task::done(GroupMessage::UpdateItemUsed(id))
+                ])
             },
             GroupMessage::OpenEditGroupBox(group) => {
                 *item_box = ItemBox::EditGroup;
                 *item_form = ItemForm {
                     id: Some(group.id),
                     name: Some(group.name),
-                    description: Some(Content::new()),
+                    description: Some(Content::with_text(&group.description)),
                     ..Default::default()
                 };
                 Task::none()
             },
-            GroupMessage::OpenNewCommandBox => {
-                *item_box = ItemBox::NewCommand;
+            GroupMessage::OpenNewItemBox(item_type) => {
+                *item_box = match item_type {
+                    ItemType::Command => ItemBox::NewCommand,
+                    ItemType::Script => ItemBox::NewScript,
+                };
+                match item_type {
+                    ItemType::Command => *item_form = ItemForm {
+                        name: Some(String::new()),
+                        description: Some(Content::new()),
+                        tag: Some(String::new()),
+                        tags: Some(Vec::new()),
+                        ..Default::default()
+                    },
+                    ItemType::Script => *item_form = ItemForm {
+                        name: Some(String::new()),
+                        content: Some(Content::new()),
+                        description: Some(Content::new()),
+                        tag: Some(String::new()),
+                        tags: Some(Vec::new()),
+                        ..Default::default()
+                    },
+                }
+
+                Task::none()
+            },
+            GroupMessage::OpenEditItemBox(item) => {
+                *item_box = match item.item_type {
+                    ItemType::Command => ItemBox::EditCommand,
+                    ItemType::Script => ItemBox::EditScript,
+                };
+                match item.item_type {
+                    ItemType::Command => *item_form = ItemForm {
+                        id: Some(item.id),
+                        name: Some(item.name),
+                        description: Some(Content::with_text(&item.description)),
+                        tag: Some(String::new()),
+                        tags: Some(item.tags),
+                        ..Default::default()
+                    },
+                    ItemType::Script => *item_form = ItemForm {
+                        id: Some(item.id),
+                        name: Some(item.name),
+                        content: Some(Content::with_text(&item.content)),
+                        description: Some(Content::with_text(&item.description)),
+                        tag: Some(String::new()),
+                        tags: Some(item.tags),
+                        ..Default::default()
+                    },
+                };
+                Task::none()
+            },
+            GroupMessage::OpenDeleteItemBox(item) => {
+                *item_box = match item.item_type {
+                    ItemType::Command => ItemBox::DeleteCommand,
+                    ItemType::Script => ItemBox::DeleteScript,
+                };
                 *item_form = ItemForm {
-                    name: Some(String::new()),
-                    description: Some(Content::new()),
-                    tag: Some(String::new()),
-                    tags: Some(Vec::new()),
+                    id: Some(item.id),
+                    name: Some(item.name),
                     ..Default::default()
                 };
                 Task::none()
             },
-            GroupMessage::OpenEditCommandBox(command) => {
-                *item_box = ItemBox::EditCommand;
-                *item_form = ItemForm {
-                    id: Some(command.id),
-                    name: Some(command.content),
-                    description: Some(Content::with_text(&command.description)),
-                    tag: Some(String::new()),
-                    tags: Some(command.tags),
-                    ..Default::default()
+            GroupMessage::UpdateItemFavourite(id, is_favourite) => {
+                let pool = match self.pool.clone() {
+                    Some(pool) => pool,
+                    None => return Task::none(),
                 };
-                Task::none()
+                Task::perform(
+                    update_item_favourite(pool, id, is_favourite),
+                    |_| GroupMessage::LoadGroup,
+                )
             },
-            GroupMessage::OpenDeleteCommandBox(command) => {
-                *item_box = ItemBox::DeleteCommand;
-                *item_form = ItemForm {
-                    id: Some(command.id),
-                    name: Some(command.content),
-                    ..Default::default()
+            GroupMessage::UpdateItemUsed(id) => {
+                let pool = match self.pool.clone() {
+                    Some(pool) => pool,
+                    None => return Task::none(),
                 };
-                Task::none()
+                Task::perform(
+                    update_item_used(pool, id),
+                    |_| GroupMessage::None,
+                )
             },
-            GroupMessage::OpenNewScriptBox => {
-                *item_box = ItemBox::NewScript;
-                *item_form = ItemForm {
-                    name: Some(String::new()),
-                    content: Some(Content::new()),
-                    description: Some(Content::new()),
-                    tag: Some(String::new()),
-                    tags: Some(Vec::new()),
-                    ..Default::default()
-                };
-                Task::none()
-            },
-            GroupMessage::OpenEditScriptBox(script) => {
-                *item_box = ItemBox::EditScript;
-                *item_form = ItemForm {
-                    id: Some(script.id),
-                    name: Some(script.name),
-                    content: Some(Content::with_text(&script.content)),
-                    description: Some(Content::with_text(&script.description)),
-                    tag: Some(String::new()),
-                    tags: Some(script.tags),
-                    ..Default::default()
-                };
-                Task::none()
-            },
-            GroupMessage::OpenDeleteScriptBox(script) => {
-                *item_box = ItemBox::DeleteScript;
-                *item_form = ItemForm {
-                    id: Some(script.id),
-                    name: Some(script.name),
-                    ..Default::default()
-                };
-                Task::none()
-            },
-            GroupMessage::AddItemToFavourites(item) => {
-                // TODO
-                println!("Favourited: {:?}", item);
-                Task::none()
-            },
+            GroupMessage::None => Task::none(),
         }
     }
 
-    fn command_row_to_command_info(commands: Vec<(CommandRow, Vec<String>)>) -> Vec<CommandInfo> {
-        commands
-            .into_iter()
-            .map(|(command, tags)| CommandInfo {
-                id: command.id,
-                content: command.content,
-                description: command.description,
-                is_favourite: match command.is_favourite {
-                    0 => false,
-                    _ => true,
-                },
-                last_used_at: command.last_used_at.as_ref().and_then(|s| {
-                    NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
-                }),
-                tags: tags,
-            })
-            .collect()
-    }
-
-    fn script_row_to_script_info(scripts: Vec<(ScriptRow, Vec<String>)>) -> Vec<ScriptInfo> {
-        scripts.into_iter().map(|(script, tags)| ScriptInfo {
-            id: script.id,
-            name: script.name,
-            content: script.content,
-            description: script.description,
-            is_favourite: match script.is_favourite {
+    fn item_row_to_item_info(items: Vec<(ItemRow, Vec<String>)>) -> Vec<ItemInfo> {
+        items.into_iter().map(|(item, tags)| ItemInfo {
+            id: item.id,
+            item_type: match item.item_type.as_str() {
+                "command" => ItemType::Command,
+                _ => ItemType::Script,
+            },
+            name: item.name,
+            content: item.content,
+            description: item.description,
+            is_favourite: match item.is_favourite {
                 0 => false,
                 _ => true,
             },
-            last_used_at: script.last_used_at.as_ref().and_then(|s| {
+            last_used_at: item.last_used_at.as_ref().and_then(|s| {
                 NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
             }),
             tags: tags,

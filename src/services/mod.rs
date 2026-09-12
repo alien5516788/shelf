@@ -1,3 +1,2 @@
 pub mod group;
-pub mod command;
-pub mod script;
+pub mod item;

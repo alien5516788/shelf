@@ -47,7 +47,7 @@ impl App {
         (
             Self {
                 title: String::from("Shelf"),
-                theme: Theme::Dark,
+                theme: Theme::Dracula,
                 screen: Screen::Dashboard,
 
                 home: None,

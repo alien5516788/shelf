@@ -9,25 +9,67 @@ pub struct GroupRow {
     pub item_count: i32,
 }
 
+// Special groups doesn't exists in the database and are created dynamically
+pub const DEFAULT_GROUP_ID: i32 = 1;
+pub const RECENT_GROUP_ID: i32 = -1;
+pub const FAVOURITES_GROUP_ID: i32 = -2;
+
 pub async fn load_groups(pool: Arc<SqlitePool>) -> Result<Vec<GroupRow>, String> {
-    sqlx::query_as::<_, GroupRow>(
+    // Load regular groups
+    let mut rows = sqlx::query_as::<_, GroupRow>(
         r#"
         SELECT
             g.id,
             g.name,
             g.description,
-            (
-                SELECT COUNT(*) FROM commands c WHERE c.group_id = g.id
-            ) + (
-                SELECT COUNT(*) FROM scripts s WHERE s.group_id = g.id
-            ) AS item_count
+            (SELECT COUNT(*) FROM items s WHERE s.group_id = g.id) AS item_count
         FROM groups AS g
         ORDER BY g.name
         "#,
     )
     .fetch_all(&*pool)
     .await
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+
+    // Create special groups
+
+    // Recent item count
+    let recent_count: i32 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM items WHERE last_used_at IS NOT NULL",
+    )
+    .fetch_one(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // Favourite item count
+    let favourite_count: i32 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM items WHERE is_favourite = 1",
+    )
+    .fetch_one(&*pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mut out = Vec::with_capacity(rows.len() + 2);
+
+    // Add special groups
+    out.push(GroupRow {
+        id: RECENT_GROUP_ID,
+        name: "Recent".into(),
+        description: "Echoes of your latest thoughts linger here - the spells you whispered to the machine, still warm, still within reach.".into(),
+        item_count: recent_count,
+    });
+
+    out.push(GroupRow {
+        id: FAVOURITES_GROUP_ID,
+        name: "Favourites".into(),
+        description: "The ones you chose to keep close - fragments of spells that earned your trust and found a home.".into(),
+        item_count: favourite_count,
+    });
+
+    // Add regular groups
+    out.append(&mut rows);
+
+    Ok(out)
 }
 
 pub async fn create_group(
@@ -35,10 +77,7 @@ pub async fn create_group(
     name: String,
     description: String,
 ) -> Result<i32, String> {
-    let name = name.trim().to_string();
-    if name.is_empty() {
-        return Err("Group name is required".into());
-    }
+    let (name, description) = validate_fields(&name, &description)?;
 
     let result = sqlx::query(
         r#"
@@ -61,15 +100,12 @@ pub async fn update_group(
     name: String,
     description: String,
 ) -> Result<(), String> {
-    let name = name.trim().to_string();
-    if name.is_empty() {
-        return Err("Group name is required".into());
-    }
+    let (name, description) = validate_fields(&name, &description)?;
 
     sqlx::query(
         r#"
         UPDATE groups
-        SET name = ?, description = ?, updated_at = datetime('now')
+        SET name = ?, description = ?
         WHERE id = ?
         "#,
     )
@@ -84,10 +120,42 @@ pub async fn update_group(
 }
 
 pub async fn delete_group(pool: Arc<SqlitePool>, id: i32) -> Result<(), String> {
+    if id == RECENT_GROUP_ID {
+        return Err("Cannot delete 'Recent' group".into());
+    }
+
+    if id == FAVOURITES_GROUP_ID {
+        return Err("Cannot delete 'Favourites' group".into());
+    }
+
+    if id == DEFAULT_GROUP_ID {
+        return Err("Cannot delete 'Default' group".into());
+    }
+
     sqlx::query("DELETE FROM groups WHERE id = ?")
         .bind(id)
         .execute(&*pool)
         .await
         .map_err(|e| e.to_string())?;
+
     Ok(())
+}
+
+fn validate_fields<'a>(
+    name: &'a str,
+    description: &'a str,
+) -> Result<(&'a str, &'a str), String> {
+    let name = name.trim();
+
+    if name.is_empty() {
+        return Err("Group name is required".into());
+    }
+
+    if name == "Recent" || name == "Favourites" || name == "Default" {
+        return Err(format!("Group name '{}' is reserved", name));
+    }
+
+    let description = description.trim();
+
+    Ok((name, description))
 }

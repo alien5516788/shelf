@@ -118,12 +118,6 @@ impl GroupNavigator {
                             |column, group| column.push(self.group_card_view(group)),
                         )
                     )
-                    .padding(Padding {
-                        top: 0.0,
-                        right: 10.0,
-                        bottom: 0.0,
-                        left: 0.0,
-                    })
                 )
             ]
         )
@@ -131,7 +125,7 @@ impl GroupNavigator {
         .width(
             match self.group_navigator_open {
                 true => Length::Fixed(250.0),
-                false => Length::Fixed(60.0),
+                false => Length::Fixed(70.0),
             }
         )
         .padding(10)
@@ -166,7 +160,7 @@ impl GroupNavigator {
                             "Recent" => icon::history()
                                 .size(20.0)
                                 .color(Color::from_rgb(0.5, 0.9, 0.9)),
-                            "Favorite" => icon::star()
+                            "Favorites" => icon::star()
                                 .size(20.0)
                                 .color(Color::from_rgb(0.5, 0.9, 0.9)),
                             _ => icon::group_box()
@@ -178,7 +172,7 @@ impl GroupNavigator {
                         match self.group_navigator_open {
                             true => row![
                                 // Card title
-                                text(clamp_name(&group_info.name, 16))
+                                text(clamp_name(&group_info.name, 13))
                                     .style(|_| text::Style {
                                         color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
                                         ..Default::default()
@@ -189,7 +183,10 @@ impl GroupNavigator {
                                     .width(Length::Fill),
 
                                 // Card item count
-                                match hovered {
+                                match hovered &&
+                                group_info.name.as_str() != "Favourites" &&
+                                group_info.name.as_str() != "Recent" &&
+                                group_info.name.as_str() != "Default"{
                                     true => container(
                                         button(
                                             icon::trash()
@@ -216,7 +213,13 @@ impl GroupNavigator {
                         },
                     ]
                     .align_y(Alignment::Center)
-                    .spacing(10)
+                    .padding(Padding {
+                        top: 0.0,
+                        right: 10.0,
+                        bottom: 0.0,
+                        left: 0.0,
+                    })
+                    .spacing(15)
                 )
                 .width(Length::Fill)
                 .align_x(Alignment::Center)

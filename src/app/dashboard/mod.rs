@@ -18,9 +18,8 @@ use status_bar::{StatusBar, StatusBarMessage};
 use crate::components::loading_screen::loading_screen_view;
 use crate::components::modal::modal_view;
 use crate::icon;
-use crate::services::command::{create_command, delete_command, update_command};
+use crate::services::item::{create_item, delete_item, update_item};
 use crate::services::group::{create_group, delete_group, update_group};
-use crate::services::script::{create_script, delete_script, update_script};
 use crate::utils::formatting::clamp_name;
 
 use super::Screen;
@@ -498,7 +497,7 @@ impl Dashboard {
                 };
 
                 // Extract fields
-                let id = self.item_form.id.unwrap_or(-1);
+                let id = self.item_form.id.unwrap_or(0);
                 let name = self.item_form.name.clone().unwrap_or(String::new());
                 let content = self.item_form.content.clone().unwrap_or(Content::new());
                 let description = self.item_form.description.clone().unwrap_or(Content::new());
@@ -518,7 +517,7 @@ impl Dashboard {
                         )
                     },
                     ItemBox::DeleteGroup => {
-                        // ISSUE: If current group is deleted, the dashboard will be left in an inconsistent state
+                        // ISSUE: If current group is deleted, the current group need to be updated
                         Task::perform(
                             async move { delete_group(pool, id).await },
                             DashboardMessage::ItemBoxDone,
@@ -528,7 +527,7 @@ impl Dashboard {
                         let group_id = self.current_group.id;
                         Task::perform(
                             async move {
-                                create_command(pool, group_id, name, description.text(), tags)
+                                create_item(pool, group_id, "command", name, content.text(), description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
@@ -538,16 +537,10 @@ impl Dashboard {
                     ItemBox::EditCommand => {
                         Task::perform(
                             async move {
-                                update_command(pool, id, name, description.text(), tags)
+                                update_item(pool, id, "command", name, content.text(), description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
-                            DashboardMessage::ItemBoxDone,
-                        )
-                    },
-                    ItemBox::DeleteCommand => {
-                        Task::perform(
-                            async move { delete_command(pool, id).await },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
@@ -555,7 +548,7 @@ impl Dashboard {
                         let group_id = self.current_group.id;
                         Task::perform(
                             async move {
-                                create_script(pool, group_id, name, content.text(), description.text(), tags)
+                                create_item(pool, group_id, "script", name, content.text(), description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
@@ -565,16 +558,16 @@ impl Dashboard {
                     ItemBox::EditScript => {
                         Task::perform(
                             async move {
-                                update_script(pool, id, name, content.text(), description.text(), tags)
+                                update_item(pool, id, "script", name, content.text(), description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::DeleteScript => {
+                    ItemBox::DeleteCommand | ItemBox::DeleteScript => {
                         Task::perform(
-                            async move { delete_script(pool, id).await },
+                            async move { delete_item(pool, id).await },
                             DashboardMessage::ItemBoxDone,
                         )
                     },

@@ -121,7 +121,7 @@ impl Navigator {
             },
             NavigatorMessage::ToggleTheme => match theme {
                 Theme::Light => {
-                    *theme = Theme::Dark;
+                    *theme = Theme::Dracula;
                     Task::none()
                 },
                 Theme::Dracula => {
