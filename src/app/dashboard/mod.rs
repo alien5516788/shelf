@@ -21,6 +21,7 @@ use crate::icon;
 use crate::services::command::{create_command, delete_command, update_command};
 use crate::services::group::{create_group, delete_group, update_group};
 use crate::services::script::{create_script, delete_script, update_script};
+use crate::utils::formatting::clamp_name;
 
 use super::Screen;
 
@@ -338,7 +339,7 @@ impl Dashboard {
                     match &self.item_box {
                         ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => column![
                             match &self.item_form.name {
-                                Some(name) => container(text(format!("Are you sure you want to delete '{}' ?", name)).size(13)),
+                                Some(name) => container(text(format!("Are you sure you want to delete '{}' ?", clamp_name(name, 30))).size(13)),
                                 None => container(space()),
                             }
                         ],
@@ -362,7 +363,7 @@ impl Dashboard {
                                 None => space().into(),
                             },
                             match &self.item_form.tags {
-                                Some(tags) => tag_input_view(tags, "", |tag| DashboardMessage::SetItemFormTag(tag), DashboardMessage::AddItemFormTag, |index| DashboardMessage::RemoveItemFormTag(index)),
+                                Some(tags) => tag_input_view(tags, self.item_form.tag.as_deref().unwrap_or(""), |tag| DashboardMessage::SetItemFormTag(tag), DashboardMessage::AddItemFormTag, |index| DashboardMessage::RemoveItemFormTag(index)),
                                 None => space().into(),
                             },
 
@@ -517,6 +518,7 @@ impl Dashboard {
                         )
                     },
                     ItemBox::DeleteGroup => {
+                        // ISSUE: If current group is deleted, the dashboard will be left in an inconsistent state
                         Task::perform(
                             async move { delete_group(pool, id).await },
                             DashboardMessage::ItemBoxDone,
@@ -606,9 +608,15 @@ impl Dashboard {
                 Some(navigator) => navigator.update(navigator_m, screen, theme).map(|m| DashboardMessage::NavigatorMessage(m)),
                 None => Task::none(),
             },
-            DashboardMessage::GroupNavigatorMessage(group_navigator_m) => match &mut self.group_navigator {
-                Some(group_navigator) => group_navigator.update(group_navigator_m, &mut self.current_group, &mut self.item_box, &mut self.item_form).map(|m| DashboardMessage::GroupNavigatorMessage(m)),
-                None => Task::none(),
+            DashboardMessage::GroupNavigatorMessage(group_navigator_m) => {
+                if let GroupNavigatorMessage::ReloadGroup = group_navigator_m {
+                    return Task::done(DashboardMessage::GroupMessage(GroupMessage::LoadGroup));
+                }
+
+                match &mut self.group_navigator {
+                    Some(group_navigator) => group_navigator.update(group_navigator_m, &mut self.current_group, &mut self.item_box, &mut self.item_form).map(|m| DashboardMessage::GroupNavigatorMessage(m)),
+                    None => Task::none(),
+                }
             },
             DashboardMessage::GroupMessage(group_m) => match &mut self.group {
                 Some(group) => group.update(group_m, &mut self.current_group, &mut self.item_box, &mut self.item_form).map(|m| DashboardMessage::GroupMessage(m)),

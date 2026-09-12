@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use iced::widget::text_editor::Content;
-use iced::{Alignment, Background, Border, Color, Element, Length, Task};
-use iced::widget::{space, button, column, container, row, text};
+use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Task};
+use iced::widget::{button, column, container, mouse_area, row, scrollable, space, text};
 use sqlx::SqlitePool;
 
 use crate::icon;
@@ -15,6 +15,8 @@ use super::{GroupInfo, ItemBox, ItemForm};
 pub struct GroupNavigator {
     pub group_navigator_open: bool,
     pub group_list: Vec<GroupInfo>,
+    pub group_hovered: Option<i32>,
+    pub group_opened: Option<i32>,
 
     pub pool: Option<Arc<SqlitePool>>,
 }
@@ -24,11 +26,14 @@ pub enum GroupNavigatorMessage {
     SetPool(Arc<SqlitePool>),
     LoadGroupNavigator,
     SetGroupList(Result<Vec<GroupRow>, String>),
+    SetGroupHovered(Option<i32>),
 
     ToggleGroupNavigatorOpen,
     SetCurrentGroup(GroupInfo),
+    ReloadGroup,
 
     OpenNewGroupBox,
+    OpenDeleteGroupBox(GroupInfo),
 }
 
 impl GroupNavigator {
@@ -37,6 +42,8 @@ impl GroupNavigator {
             Self {
                 group_navigator_open: true,
                 group_list: Vec::new(),
+                group_opened: None,
+                group_hovered: None,
                 pool: None,
             },
 
@@ -103,11 +110,21 @@ impl GroupNavigator {
                     .height(Length::Fixed(20.0)),
 
                 // Group list
-                self.group_list.iter().fold(
-                    column([])
-                        .spacing(10),
-                    |column, group| column.push(self.group_card_view(group)),
-                ),
+                scrollable(
+                    container(
+                        self.group_list.iter().fold(
+                            column([])
+                                .spacing(10),
+                            |column, group| column.push(self.group_card_view(group)),
+                        )
+                    )
+                    .padding(Padding {
+                        top: 0.0,
+                        right: 10.0,
+                        bottom: 0.0,
+                        left: 0.0,
+                    })
+                )
             ]
         )
         .height(Length::Fill)
@@ -117,7 +134,12 @@ impl GroupNavigator {
                 false => Length::Fixed(60.0),
             }
         )
-        .padding(10)
+        .padding(Padding {
+            top: 10.0,
+            right: 0.0, // Filled by the scrollable
+            bottom: 10.0,
+            left: 10.0,
+        })
         .style(|_| container::Style {
             border: Border {
                 color: Color::from_rgb(0.4, 0.4, 0.4),
@@ -130,62 +152,97 @@ impl GroupNavigator {
     }
 
     fn group_card_view(&self, group_info: &GroupInfo) -> Element<'_, GroupNavigatorMessage> {
-        button(
-            container(
-                row![
-                    // Card icon
-                    match group_info.name.as_str() {
-                        "Recent" => icon::history()
-                            .size(20.0)
-                            .color(Color::from_rgb(0.5, 0.9, 0.9)),
-                        "Favorite" => icon::star()
-                            .size(20.0)
-                            .color(Color::from_rgb(0.5, 0.9, 0.9)),
-                        _ => icon::group_box()
-                            .size(20.0)
-                            .color(Color::from_rgb(1.0, 0.7, 0.4)),
-                    },
+        let opened = match self.group_opened {
+            Some(id) => id == group_info.id,
+            None => false,
+        };
 
-                    // Card details
-                    match self.group_navigator_open {
-                        true => row![
-                            // Card title
-                            text(clamp_name(&group_info.name, 16))
-                                .style(|_| text::Style {
-                                    color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
-                                    ..Default::default()
-                                }),
+        let hovered = match self.group_hovered {
+            Some(id) => id == group_info.id,
+            None => false,
+        };
 
-                            // Space
-                            space()
-                                .width(Length::Fill),
+        mouse_area(
+            button(
+                container(
+                    row![
+                        // Card icon
+                        match group_info.name.as_str() {
+                            "Recent" => icon::history()
+                                .size(20.0)
+                                .color(Color::from_rgb(0.5, 0.9, 0.9)),
+                            "Favorite" => icon::star()
+                                .size(20.0)
+                                .color(Color::from_rgb(0.5, 0.9, 0.9)),
+                            _ => icon::group_box()
+                                .size(20.0)
+                                .color(Color::from_rgb(1.0, 0.7, 0.4)),
+                        },
 
-                            // Card item count
-                            text(&group_info.item_count)
-                                .style(|_| text::Style {
-                                    color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
-                                    ..Default::default()
-                                }),
-                        ],
-                        false => row![],
-                    },
-                ]
-                .align_y(Alignment::Center)
-                .spacing(10)
+                        // Card details
+                        match self.group_navigator_open {
+                            true => row![
+                                // Card title
+                                text(clamp_name(&group_info.name, 16))
+                                    .style(|_| text::Style {
+                                        color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
+                                        ..Default::default()
+                                    }),
+
+                                // Space
+                                space()
+                                    .width(Length::Fill),
+
+                                // Card item count
+                                match hovered {
+                                    true => container(
+                                        button(
+                                            icon::trash()
+                                                .size(13.0)
+                                                .color(Color::from_rgb(0.9, 0.1, 0.1))
+                                        )
+                                        .on_press(GroupNavigatorMessage::OpenDeleteGroupBox(group_info.clone()))
+                                        .padding(0)
+                                        .style(|_, _| button::Style {
+                                            background: None,
+                                            ..Default::default()
+                                        })
+                                    ),
+                                    false => container(
+                                        text(&group_info.item_count)
+                                            .style(|_| text::Style {
+                                                color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
+                                                ..Default::default()
+                                            })
+                                    ),
+                                }
+                            ],
+                            false => row![],
+                        },
+                    ]
+                    .align_y(Alignment::Center)
+                    .spacing(10)
+                )
+                .width(Length::Fill)
+                .align_x(Alignment::Center)
             )
+            .on_press(GroupNavigatorMessage::SetCurrentGroup(group_info.clone()))
             .width(Length::Fill)
-            .align_x(Alignment::Center)
+            .padding(8)
+            .style(move |_, status| button::Style {
+                background: if opened {
+                    Some(Background::Color(Color::from_rgb(0.2, 0.2, 0.3)))
+                } else {
+                    match status {
+                        button::Status::Hovered | button::Status::Pressed => Some(Background::Color(Color::from_rgb(0.2, 0.2, 0.3))),
+                        _ => None,
+                    }
+                },
+                ..Default::default()
+            })
         )
-        .on_press(GroupNavigatorMessage::SetCurrentGroup(group_info.clone()))
-        .width(Length::Fill)
-        .padding(8)
-        .style(|_, status| button::Style {
-            background: match status {
-                button::Status::Hovered => Some(Background::Color(Color::from_rgb(0.2, 0.2, 0.3))),
-                _ => None,
-            },
-            ..Default::default()
-        })
+        .on_enter(GroupNavigatorMessage::SetGroupHovered(Some(group_info.id)))
+        .on_exit(GroupNavigatorMessage::SetGroupHovered(None))
         .into()
     }
 
@@ -224,16 +281,18 @@ impl GroupNavigator {
                     .find(|group| current_group.id == group.id);
 
                 match current_group_match {
-                    Some(group) => *current_group = group.clone(),
+                    Some(group) => Task::done(GroupNavigatorMessage::SetCurrentGroup(group.clone())),
                     None => match self.group_list.first() {
                         // Current group is deleted in new list
                         // Setting first group as current group
-                        Some(first) => *current_group = first.clone(),
+                        Some(first) => Task::done(GroupNavigatorMessage::SetCurrentGroup(first.clone())),
                         // Group list is empty
-                        None => *current_group = GroupInfo::default()
+                        None => Task::done(GroupNavigatorMessage::SetCurrentGroup(GroupInfo::default()))
                     }
                 }
-
+            },
+            GroupNavigatorMessage::SetGroupHovered(hovered) => {
+                self.group_hovered = hovered;
                 Task::none()
             },
             GroupNavigatorMessage::ToggleGroupNavigatorOpen =>{
@@ -241,8 +300,12 @@ impl GroupNavigator {
                 Task::none()
             },
             GroupNavigatorMessage::SetCurrentGroup(current_g) => {
+                self.group_opened = Some(current_g.id);
                 *current_group = current_g;
-                // ISSUE: Group must be reloaded to update the group content
+                Task::done(GroupNavigatorMessage::ReloadGroup)
+            },
+            GroupNavigatorMessage::ReloadGroup => {
+                // Intercepted by the dashbaord
                 Task::none()
             },
             GroupNavigatorMessage::OpenNewGroupBox => {
@@ -250,6 +313,15 @@ impl GroupNavigator {
                 *item_form = ItemForm {
                     name: Some(String::new()),
                     description: Some(Content::new()),
+                    ..Default::default()
+                };
+                Task::none()
+            },
+            GroupNavigatorMessage::OpenDeleteGroupBox(group) => {
+                *item_box = ItemBox::DeleteGroup;
+                *item_form = ItemForm {
+                    id: Some(group.id),
+                    name: Some(group.name),
                     ..Default::default()
                 };
                 Task::none()
