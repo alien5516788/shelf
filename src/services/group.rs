@@ -151,6 +151,10 @@ fn validate_fields<'a>(
         return Err("Group name is required".into());
     }
 
+    if name.len() > 50 {
+        return Err("Group name is too long (max 50 chars)".into());
+    }
+
     if name == "Recent" || name == "Favourites" || name == "Default" {
         return Err(format!("Group name '{}' is reserved", name));
     }
