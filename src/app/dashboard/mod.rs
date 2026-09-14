@@ -5,8 +5,8 @@ mod status_bar;
 
 use std::sync::Arc;
 use iced::border::Radius;
-use iced::widget::{Row, center_y};
-use iced::{Background, Border, Color, Element, Length, Task};
+use iced::widget::{Row, center, center_y};
+use iced::{Background, Border, Color, Element, Length, Padding, Task, Theme};
 use iced::widget::{button, column, container, row, space, stack, text, text::Wrapping, text_editor, text_input, text_editor::{Content, Action}};
 use sqlx::SqlitePool;
 
@@ -167,14 +167,31 @@ impl Dashboard {
     }
 
     fn item_box_view(&self) -> Element<'_, DashboardMessage> {
+
+        let accent_color: Color = match self.item_box {
+            ItemBox::None | ItemBox::NewGroup | ItemBox::NewCommand | ItemBox::NewScript => {
+                Color::from_rgb(0.0, 1.0, 0.0)
+            },
+            ItemBox::EditGroup | ItemBox::EditCommand | ItemBox::EditScript => {
+                Color::from_rgb(0.5, 0.9, 0.9)
+            },
+            ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => {
+                Color::from_rgb(1.0, 0.0, 0.0)
+            },
+        };
+
         fn text_input_view<'a, F>(placeholder: &str, value: &'a str, error: bool, on_input: F) -> Element<'a, DashboardMessage>
         where F: Fn(String) -> DashboardMessage + 'a
         {
             text_input(placeholder, value)
                 .on_input(on_input)
                 .padding(10)
-                .style(move |_, _| text_input::Style {
-                    background: Background::Color(Color::from_rgba(0.15, 0.15, 0.18, 1.0)),
+                .style(move |theme, _| text_input::Style {
+                    // ISSUE: background and border colors are not consistent with the theme
+                    background: match theme {
+                        Theme::Dracula => Background::Color(Color::from_rgb(0.15, 0.15, 0.18)),
+                        _ => Background::Color(Color::from_rgb(0.9, 0.9, 0.9)),
+                    },
                     border: Border {
                         color: match error {
                             true => Color::from_rgb(0.35, 0.35, 0.4),
@@ -203,8 +220,11 @@ impl Dashboard {
                 .height(Length::Fixed(125.0))
                 .padding(10)
                 .wrapping(Wrapping::WordOrGlyph)
-                .style(move |_, _| text_editor::Style {
-                    background: Background::Color(Color::from_rgba(0.15, 0.15, 0.18, 1.0)),
+                .style(move |theme, _| text_editor::Style {
+                    background: match theme {
+                        Theme::Dracula => Background::Color(Color::from_rgb(0.15, 0.15, 0.18)),
+                        _ => Background::Color(Color::from_rgb(0.9, 0.9, 0.9)),
+                    },
                     border: Border {
                         color: match error {
                             true => Color::from_rgb(0.35, 0.35, 0.4),
@@ -320,26 +340,36 @@ impl Dashboard {
                         _ => text(""),
                     }
                     .size(18)
-                    .style(|_| text::Style {
-                        color: Some(Color::from_rgb(0.0, 1.0, 0.0)),
+                    .style(move |_| text::Style {
+                        color: Some(accent_color.clone()),
                         ..Default::default()
                     }),
 
                     // Error message
-                    match &self.item_error {
-                        Some(error) => text(error).size(15),
-                        None => text("").size(0.1),
-                    }
-                    .style(|_| text::Style {
-                        color: Some(Color::from_rgb(1.0, 0.0, 0.0)),
-                        ..Default::default()
-                    }),
+                    container(
+                        match &self.item_error {
+                            Some(error) => text(error).size(15),
+                            None => text("").size(0.1),
+                        }
+                        .style(|_| text::Style {
+                            color: Some(Color::from_rgb(1.0, 0.0, 0.0)),
+                            ..Default::default()
+                        })
+                    )
+                    .padding(5),
+
 
                     // Input fields and Tag input or body text
                     match &self.item_box {
                         ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => column![
                             match &self.item_form.name {
-                                Some(name) => container(text(format!("Are you sure you want to delete '{}' ?", clamp_name(name, 30))).size(13)),
+                                Some(name) => container(
+                                    text(format!("Are you sure you want to delete '{}' ?", clamp_name(name, 30))).size(13)
+                                )
+                                .padding(Padding {
+                                    bottom: 15.0,
+                                    ..Default::default()
+                                }),
                                 None => container(space()),
                             }
                         ],
@@ -376,30 +406,62 @@ impl Dashboard {
                         space()
                             .width(Length::Fill),
 
-                        button("Cancel")
-                            .on_press(DashboardMessage::CloseItemBox),
+                        button(center(text("Cancel")))
+                            .on_press(DashboardMessage::CloseItemBox)
+                            .height(40)
+                            .width(100)
+                            .style(move |_, _| button::Style {
+                                background: None,
+                                border: Border {
+                                    color: accent_color.clone(),
+                                    width: 1.0,
+                                    radius: Radius::from(5),
+                                },
+                                text_color: accent_color.clone(),
+                                ..Default::default()
+                            }),
 
                         space()
-                            .width(20),
+                            .width(15),
 
-                        button("Confirm")
-                            .on_press(DashboardMessage::SubmitItemBox),
+                        button(center(
+                            text("Confirm")
+                                .style(|theme| text::Style {
+                                    color: match theme {
+                                        Theme::Dracula => Some(Color::from_rgb(0.0, 0.0, 0.0)),
+                                        _ => Some(Color::from_rgb(1.0, 1.0, 1.0)),
+                                    },
+                                    ..Default::default()
+                                })
+                        ))
+                        .on_press(DashboardMessage::SubmitItemBox)
+                        .height(40)
+                        .width(100)
+                        .style(move |_, _| button::Style {
+                            background: Some(Background::Color(accent_color.clone())),
+                            border: Border {
+                                color: accent_color.clone(),
+                                width: 1.0,
+                                radius: Radius::from(5),
+                            },
+                            ..Default::default()
+                        }),
                     ]
                     .width(Length::Fill)
                     .spacing(10)
                 ]
                 .padding(30)
-                .spacing(20)
+                .spacing(10)
             )
             .width(425)
             .height(Length::Shrink)
-            .style(|_| container::Style {
+            .style(move |theme| container::Style {
                 border: Border {
-                    color: Color::from_rgb(0.0, 1.0, 0.0),
+                    color: accent_color,
                     width: 1.0,
                     radius: Radius::from(10),
                 },
-                background: Some(Background::from(Color::from_rgb(0.2, 0.2, 0.2))),
+                background: Some(Background::from(theme.extended_palette().background.base.color)),
                 ..Default::default()
             }),
 

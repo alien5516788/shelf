@@ -1,5 +1,5 @@
 use iced::widget::{center, container, mouse_area, opaque};
-use iced::{Color, Element};
+use iced::{Background, Color, Element};
 
 /*
  * Creates and overlay for dialog boxes notification
@@ -12,10 +12,10 @@ pub fn modal_view<'a, Message: Clone + 'a>(content: impl Into<Element<'a, Messag
                 // Wrapping content in an another opaque to avoid mouse click propagation
                 opaque(content)
             )
-            .style(|_theme| {
+            .style(|_| {
                 container::Style {
-                    background: Some(Color { a: 0.75, ..Color::BLACK }.into()),
-                    ..container::Style::default()
+                    background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.6))),
+                    ..Default::default()
                 }
             })
         )

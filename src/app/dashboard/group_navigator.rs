@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use iced::widget::text_editor::Content;
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Task};
+use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Task, Theme};
 use iced::widget::{button, column, container, mouse_area, row, scrollable, space, text};
 use sqlx::SqlitePool;
 
@@ -58,10 +58,10 @@ impl GroupNavigator {
                 button(
                     icon::menu()
                         .size(20.0)
-                        .color(Color::from_rgb(0.3, 0.4, 0.6))
                 )
-                .style(|_, _| button::Style {
+                .style(|theme, _| button::Style {
                     background: None,
+                    text_color: theme.extended_palette().secondary.base.color,
                     ..Default::default()
                 })
                 .on_press(GroupNavigatorMessage::ToggleGroupNavigatorOpen),
@@ -122,16 +122,14 @@ impl GroupNavigator {
             ]
         )
         .height(Length::Fill)
-        .width(
-            match self.group_navigator_open {
-                true => Length::Fixed(250.0),
-                false => Length::Fixed(70.0),
-            }
-        )
+        .width(match self.group_navigator_open {
+            true => 250,
+            false => 70,
+        })
         .padding(10)
-        .style(|_| container::Style {
+        .style(|theme| container::Style {
             border: Border {
-                color: Color::from_rgb(0.4, 0.4, 0.4),
+                color: theme.extended_palette().secondary.weak.color,
                 width: 0.5,
                 ..Default::default()
             },
@@ -160,7 +158,7 @@ impl GroupNavigator {
                             "Recent" => icon::history()
                                 .size(20.0)
                                 .color(Color::from_rgb(0.5, 0.9, 0.9)),
-                            "Favorites" => icon::star()
+                            "Favourites" => icon::star()
                                 .size(20.0)
                                 .color(Color::from_rgb(0.5, 0.9, 0.9)),
                             _ => icon::group_box()
@@ -173,8 +171,8 @@ impl GroupNavigator {
                             true => row![
                                 // Card title
                                 text(clamp_name(&group_info.name, 13))
-                                    .style(|_| text::Style {
-                                        color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
+                                    .style(|theme: &Theme| text::Style {
+                                        color: Some(theme.extended_palette().secondary.base.color),
                                         ..Default::default()
                                     }),
 
@@ -202,8 +200,8 @@ impl GroupNavigator {
                                     ),
                                     false => container(
                                         text(&group_info.item_count)
-                                            .style(|_| text::Style {
-                                                color: Some(Color::from_rgb(1.0, 1.0, 1.0)),
+                                            .style(|theme: &Theme| text::Style {
+                                                color: Some(theme.extended_palette().secondary.base.color),
                                                 ..Default::default()
                                             })
                                     ),
@@ -227,12 +225,12 @@ impl GroupNavigator {
             .on_press(GroupNavigatorMessage::SetCurrentGroup(group_info.clone()))
             .width(Length::Fill)
             .padding(8)
-            .style(move |_, status| button::Style {
+            .style(move |theme, status| button::Style {
                 background: if opened {
-                    Some(Background::Color(Color::from_rgb(0.2, 0.2, 0.3)))
+                    Some(Background::Color(theme.extended_palette().secondary.base.color).scale_alpha(0.1))
                 } else {
                     match status {
-                        button::Status::Hovered | button::Status::Pressed => Some(Background::Color(Color::from_rgb(0.2, 0.2, 0.3))),
+                        button::Status::Hovered | button::Status::Pressed => Some(Background::Color(theme.extended_palette().secondary.base.color).scale_alpha(0.1)),
                         _ => None,
                     }
                 },

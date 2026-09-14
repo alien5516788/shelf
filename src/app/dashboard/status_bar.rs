@@ -1,4 +1,4 @@
-use iced::{Border, Color, Element, Length, Task};
+use iced::{Border, Element, Length, Task, Theme};
 use iced::widget::{container, row};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -25,11 +25,11 @@ impl StatusBar {
         .height(Length::Fixed(30.0))
         .width(Length::Fill)
         .padding(5.0)
-        .style(|_| container::Style {
+        .style(|theme: &Theme| container::Style {
             border: Border {
-                color: Color::from_rgb(0.4, 0.4, 0.4),
+                color: theme.extended_palette().secondary.weak.color,
                 width: 0.5,
-                radius: 0.0.into(),
+                ..Default::default()
             },
             ..Default::default()
         })

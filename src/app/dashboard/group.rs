@@ -4,7 +4,7 @@ use iced::font::{Family, Style};
 use iced::widget::text::{Span, Wrapping};
 use iced::widget::text_editor::Content;
 use iced::widget::{Column, Row, button, center_x, column, container, mouse_area, rich_text, row, scrollable, space, text};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length, Task};
+use iced::{Alignment, Background, Border, Color, Element, Font, Length, Padding, Task, Theme};
 use iced::clipboard;
 use sqlx::SqlitePool;
 use sqlx::types::chrono::NaiveDateTime;
@@ -138,12 +138,13 @@ impl Group {
                     }),
 
 
-                    button(icon::a_large_small()
-                        .size(20.0)
-                        .color(match self.filter.alphabetical {
-                            true => Color::from_rgb(0.5, 0.9, 0.9),
-                            false => Color::from_rgb(0.3, 0.5, 1.0),
-                        })
+                    button(
+                        icon::a_large_small()
+                            .size(20.0)
+                            .color(match self.filter.alphabetical {
+                                true => Color::from_rgb(0.5, 0.9, 0.9),
+                                false => Color::from_rgb(0.3, 0.5, 1.0),
+                            })
                     )
                     .on_press(GroupMessage::SetFilter(Filter {
                         alphabetical: !self.filter.alphabetical,
@@ -248,32 +249,37 @@ impl Group {
                     // TODO: Make a gradient overlay for collapsed description
                     container(
                         row![
+                            // Text
                             container(match current_group.description.as_str() {
                                 "" => text("No description available")
                                     .size(16)
-                                    .color(Color::from_rgb(0.5, 0.5, 0.5))
                                     .font(Font {
                                         family: Family::Monospace,
                                         style: Style::Italic,
                                         ..Default::default()
+                                    })
+                                    .style(|theme: &Theme| text::Style {
+                                        color: Some(theme.extended_palette().secondary.base.color),
                                     }),
                                 description => text(description.to_string())
                                     .size(16)
-                                    .color(Color::from_rgb(0.9, 0.9, 0.9)),
+                                    .style(|theme: &Theme| text::Style {
+                                        color: Some(theme.extended_palette().secondary.base.color),
+                                    }),
                             })
                             .width(Length::Fill),
 
+                            // Collapse button
                             button(match self.description_collapsed {
                                 true => icon::chevron_down()
-                                    .size(20.0)
-                                    .color(Color::from_rgb(0.5, 0.85, 0.9)),
+                                    .size(20.0),
                                 false => icon::chevron_up()
-                                    .size(20.0)
-                                    .color(Color::from_rgb(0.5, 0.85, 0.9)),
+                                    .size(20.0),
                             })
                             .on_press(GroupMessage::ToggleDescriptionCollapsed)
-                            .style(|_, _| button::Style {
+                            .style(|theme, _| button::Style {
                                 background: None,
+                                text_color: theme.extended_palette().secondary.base.color,
                                 ..Default::default()
                             }),
                         ]
@@ -285,15 +291,15 @@ impl Group {
                     .width(Length::Fill)
                     .padding(10)
                     .clip(true)
-                    .style(|_| container::Style {
-                        background: Some(Background::Color(Color::from_rgba(0.2, 0.2, 0.3, 0.5))),
+                    .style(|theme| container::Style {
+                        background: Some(Background::Color(theme.extended_palette().secondary.base.color).scale_alpha(0.1)),
                         ..Default::default()
                     }),
                 ],
 
                 // Item list
-                container(
-                    scrollable(
+                scrollable(
+                    column![
                         center_x(
                             self.item_list
                                 .iter()
@@ -302,20 +308,27 @@ impl Group {
                                         .spacing(10),
                                     |column, item| column.push(self.item_card_view(item)),
                                 )
-                        )
-                    )
+                        ),
+
+                        space().height(10),
+                    ]
                 )
             ]
             .spacing(15)
         )
         .height(Length::Fill)
         .width(Length::Fill)
-        .padding(10)
-        .style(|_| container::Style {
+        .padding(Padding {
+            top: 10.0,
+            left: 10.0,
+            right: 10.0,
+            ..Default::default()
+        })
+        .style(|theme| container::Style {
             border: Border {
-                color: Color::from_rgb(0.4, 0.4, 0.4),
+                color: theme.extended_palette().secondary.weak.color,
                 width: 0.5,
-                radius: 0.0.into(),
+                ..Default::default()
             },
             ..Default::default()
         })
@@ -399,12 +412,12 @@ impl Group {
                             None => "",
                         })
                         .size(13)
-                        .color(Color::from_rgb(0.55, 0.55, 0.6)),
+                        .color(Color::from_rgb(0.5, 0.5, 0.6)),
 
                         // Description
                         text(description)
                         .size(13)
-                        .color(Color::from_rgb(0.55, 0.55, 0.6)),
+                        .color(Color::from_rgb(0.5, 0.5, 0.6)),
 
                         // Tags
                         tags
@@ -434,7 +447,7 @@ impl Group {
                     // Favourite, Edit, Delete buttons
                     column![
                         // Run
-                        button(icon::play().size(14).color(Color::from_rgb(0.5, 0.85, 0.9)))
+                        button(icon::play().size(14).color(Color::from_rgb(0.3, 0.9, 0.4)))
                             .style(|_, _| button::Style { background: None, ..Default::default() }),
 
                         // Favourite
@@ -444,10 +457,13 @@ impl Group {
                                 button(
                                     icon::star()
                                         .size(16)
-                                        .color(Color::from_rgb(1.0, 0.85, 0.3))
                                 )
                                 .on_press(GroupMessage::UpdateItemFavourite(id, false))
-                                .style(|_, _| button::Style { background: None, ..Default::default() })
+                                .style(|_, _| button::Style {
+                                    background: None,
+                                    text_color: Color::from_rgb(0.9, 0.9, 0.5),
+                                    ..Default::default()
+                                })
                             ),
                             // If the item is not a favourite, hide the star icon but show the empty star icon on hover
                             false => match hovered {
@@ -458,7 +474,11 @@ impl Group {
                                             .color(Color::from_rgb(0.45, 0.45, 0.5))
                                     )
                                     .on_press(GroupMessage::UpdateItemFavourite(id, true))
-                                    .style(|_, _| button::Style { background: None, ..Default::default() })
+                                    .style(|theme, _| button::Style {
+                                        background: None,
+                                        text_color: theme.extended_palette().secondary.base.color,
+                                        ..Default::default()
+                                    })
                                 ),
                                 false => container(space()),
                             },
@@ -468,13 +488,25 @@ impl Group {
                         // Show the edit and delete buttons on hover
                         match hovered {
                             true => column![
-                                button(icon::pen().size(14).color(Color::from_rgb(0.5, 0.85, 0.9)))
-                                    .on_press(GroupMessage::OpenEditItemBox(item.clone()))
-                                    .style(|_, _| button::Style { background: None, ..Default::default() }),
+                                button(
+                                    icon::pen().size(14)
+                                )
+                                .on_press(GroupMessage::OpenEditItemBox(item.clone()))
+                                .style(|_, _| button::Style {
+                                    background: None,
+                                    text_color: Color::from_rgb(0.5, 0.9, 0.9),
+                                    ..Default::default()
+                                }),
 
-                                button(icon::trash().size(14).color(Color::from_rgb(0.9, 0.35, 0.35)))
-                                    .on_press(GroupMessage::OpenDeleteItemBox(item.clone()))
-                                    .style(|_, _| button::Style { background: None, ..Default::default() })
+                                button(
+                                    icon::trash().size(14)
+                                )
+                                .on_press(GroupMessage::OpenDeleteItemBox(item.clone()))
+                                .style(|_, _| button::Style {
+                                    background: None,
+                                    text_color: Color::from_rgb(0.9, 0.3, 0.3),
+                                    ..Default::default()
+                                })
                             ],
                             false => column![],
                         }
@@ -488,10 +520,9 @@ impl Group {
             .width(Length::Fixed(800.0))
             .height(Length::Shrink)
             .padding(12)
-            .style(|_| container::Style {
-                background: Some(Background::Color(Color::from_rgb(0.14, 0.14, 0.17))),
+            .style(|theme| container::Style {
                 border: Border {
-                    color: Color::from_rgb(0.28, 0.28, 0.32),
+                    color: theme.extended_palette().secondary.weak.color,
                     width: 1.0,
                     ..Default::default()
                 },
