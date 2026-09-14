@@ -1,7 +1,7 @@
 use iced::{Alignment, Border, Color, Element, Length, Padding, Task, Theme};
 use iced::widget::{button, center_x, container, row, text, text_input};
 
-use crate::app::Screen;
+use crate::app::{AppTheme, Screen};
 use crate::icon;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,7 +29,7 @@ impl Navigator {
         )
     }
 
-    pub fn view(&self, title: String, theme: &Theme) -> Element<'_, NavigatorMessage> {
+    pub fn view(&self, title: String, theme: &AppTheme) -> Element<'_, NavigatorMessage> {
         container(
             row![
                 // App name
@@ -76,10 +76,10 @@ impl Navigator {
                     .on_press(NavigatorMessage::SetScreen(Screen::Settings)),
 
                     button(match theme {
-                        Theme::Dark => icon::moon()
+                        AppTheme::Dark => icon::moon()
                             .size(20.0)
                             .color(Color::from_rgb(0.5, 0.9, 0.9)),
-                        _ => icon::sun()
+                        AppTheme::Light => icon::sun()
                             .size(20.0)
                             .color(Color::from_rgb(0.5, 0.5, 0.5)),
                     })
@@ -113,23 +113,19 @@ impl Navigator {
         .into()
     }
 
-    pub fn update(&mut self, message: NavigatorMessage, screen: &mut Screen, theme: &mut Theme) -> Task<NavigatorMessage> {
+    pub fn update(&mut self, message: NavigatorMessage, screen: &mut Screen, theme: &mut AppTheme) -> Task<NavigatorMessage> {
         match message {
             NavigatorMessage::SetScreen(scrn) => {
                 *screen = scrn;
                 Task::none()
             },
             NavigatorMessage::ToggleTheme => match theme {
-                Theme::Light => {
-                    *theme = Theme::Dracula;
+                AppTheme::Light => {
+                    *theme = AppTheme::Dark;
                     Task::none()
                 },
-                Theme::Dracula => {
-                    *theme = Theme::Light;
-                    Task::none()
-                },
-                _ => {
-                    *theme = Theme::Light;
+                AppTheme::Dark => {
+                    *theme = AppTheme::Light;
                     Task::none()
                 },
             },

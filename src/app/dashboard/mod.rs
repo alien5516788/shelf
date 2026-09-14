@@ -6,7 +6,7 @@ mod status_bar;
 use std::sync::Arc;
 use iced::border::Radius;
 use iced::widget::{Row, center_y};
-use iced::{Background, Border, Color, Element, Length, Task, Theme};
+use iced::{Background, Border, Color, Element, Length, Task};
 use iced::widget::{button, column, container, row, space, stack, text, text::Wrapping, text_editor, text_input, text_editor::{Content, Action}};
 use sqlx::SqlitePool;
 
@@ -15,6 +15,7 @@ use group_navigator::{GroupNavigator, GroupNavigatorMessage};
 use group::{Group, GroupMessage};
 use status_bar::{StatusBar, StatusBarMessage};
 
+use crate::app::AppTheme;
 use crate::components::loading_screen::loading_screen_view;
 use crate::components::modal::modal_view;
 use crate::icon;
@@ -115,7 +116,7 @@ impl Dashboard {
         )
     }
 
-    pub fn view(&self, title: &String, theme: &Theme) -> Element<'_, DashboardMessage> {
+    pub fn view(&self, title: &String, theme: &AppTheme) -> Element<'_, DashboardMessage> {
         let Some(navigator) = &self.navigator else {
             return loading_screen_view();
         };
@@ -406,7 +407,7 @@ impl Dashboard {
         )
     }
 
-    pub fn update(&mut self, message: DashboardMessage, screen: &mut Screen, theme: &mut Theme) -> Task<DashboardMessage> {
+    pub fn update(&mut self, message: DashboardMessage, screen: &mut Screen, theme: &mut AppTheme) -> Task<DashboardMessage> {
         match message {
             DashboardMessage::LoadDashboard(pool) => {
                 self.pool = Some(pool.clone());

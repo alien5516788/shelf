@@ -17,7 +17,7 @@ use crate::data::db::init_db;
 #[derive(Debug)]
 pub struct App {
     title: String,
-    theme: Theme,
+    theme: AppTheme,
     screen: Screen,
 
     home: Option<Home>,
@@ -36,6 +36,12 @@ pub enum AppMessage {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum AppTheme {
+    Dark,
+    Light,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Screen {
     Home,
     Dashboard,
@@ -47,7 +53,7 @@ impl App {
         (
             Self {
                 title: String::from("Shelf"),
-                theme: Theme::Dracula,
+                theme: AppTheme::Dark,
                 screen: Screen::Dashboard,
 
                 home: None,
@@ -131,6 +137,9 @@ impl App {
     }
 
     pub fn theme(&self) -> Theme {
-        self.theme.clone()
+        match self.theme {
+            AppTheme::Light => Theme::Light,
+            AppTheme::Dark => Theme::Dracula,
+        }
     }
 }
