@@ -580,7 +580,6 @@ impl Dashboard {
                         )
                     },
                     ItemBox::DeleteGroup => {
-                        // ISSUE: If current group is deleted, the current group need to be updated
                         Task::perform(
                             async move { delete_group(pool, id).await },
                             DashboardMessage::ItemBoxDone,
@@ -641,13 +640,12 @@ impl Dashboard {
                 match result {
                     Ok(()) => {
                         match self.item_box {
-                            ItemBox::NewGroup | ItemBox::DeleteGroup => {
+                            ItemBox::NewGroup | ItemBox::EditGroup | ItemBox::DeleteGroup => {
                                 Task::done(DashboardMessage::CloseItemBox)
                                     .chain(Task::done(DashboardMessage::GroupNavigatorMessage(GroupNavigatorMessage::LoadGroupNavigator)))
                             },
                             ItemBox::NewCommand | ItemBox::EditCommand | ItemBox::DeleteCommand
-                            | ItemBox::NewScript | ItemBox::EditScript | ItemBox::DeleteScript
-                            | ItemBox::EditGroup => {
+                            | ItemBox::NewScript | ItemBox::EditScript | ItemBox::DeleteScript => {
                                 Task::done(DashboardMessage::CloseItemBox)
                                     .chain(Task::done(DashboardMessage::GroupMessage(GroupMessage::LoadGroup)))
                             },

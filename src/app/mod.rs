@@ -88,9 +88,9 @@ impl App {
     pub fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
         match message {
             AppMessage::PoolLoaded(pool) => match pool {
-                Ok(p) => {
+                Ok(pool) => {
                     println!("Shelf: Database pool loaded successfully");
-                    Task::done(AppMessage::LoadApp(p))
+                    Task::done(AppMessage::LoadApp(pool))
                 },
                 Err(e) => {
                     eprintln!("Shelf: Failed to create database pool: {}", e);
@@ -137,6 +137,7 @@ impl App {
     }
 
     pub fn theme(&self) -> Theme {
+        // TODO: Make a custom simplified dark and light theme
         match self.theme {
             AppTheme::Light => Theme::Light,
             AppTheme::Dark => Theme::Dracula,
