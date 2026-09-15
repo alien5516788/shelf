@@ -4,7 +4,7 @@ use iced::font::{Family, Style};
 use iced::widget::text::{Span, Wrapping};
 use iced::widget::text_editor::Content;
 use iced::widget::{Column, Row, button, center, center_x, column, container, mouse_area, rich_text, row, scrollable, space, text};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length, Padding, Task, Theme, color};
+use iced::{Alignment, Background, Border, Color, Element, Font, Length, Task, Theme, color};
 use iced::clipboard;
 use sqlx::SqlitePool;
 use sqlx::types::chrono::NaiveDateTime;
@@ -17,12 +17,17 @@ use crate::services::item::{ItemRow, load_items_for_group, update_item_favourite
 #[derive(Debug, Clone)]
 pub struct Group {
     description_collapsed: bool,
-    item_list: Vec<ItemInfo>,
     filter: Filter,
-    item_hovered: Option<i32>, // TODO: Move this inside the ItemInfo struct
-    item_content_copied: Option<i32>, // TODO: Move this inside the ItemInfo struct
+    item_list: Vec<ItemInfo>,
 
     pool: Option<Arc<SqlitePool>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Filter {
+    command: bool,
+    script: bool,
+    alphabetical: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,6 +40,10 @@ pub struct ItemInfo {
     pub is_favourite: bool,
     pub last_used_at: Option<NaiveDateTime>,
     pub tags: Vec<String>,
+
+    pub hovered: bool,
+    pub copied: bool,
+    pub description_collapsed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,31 +52,26 @@ pub enum ItemType {
     Script,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Filter {
-    command: bool,
-    script: bool,
-    alphabetical: bool,
-}
-
 
 #[derive(Debug, Clone)]
 pub enum GroupMessage {
     SetPool(Arc<SqlitePool>),
     LoadGroup,
-    ToggleDescriptionCollapsed,
     SetItemList(Result<Vec<(ItemRow, Vec<String>)>, String>),
+    ToggleDescriptionCollapsed,
     SetFilter(Filter),
-    SetItemHovered(Option<i32>),
-    SetItemContentCopied(Option<i32>),
-    CopyItemContent(i32, String),
+    MakeItemFavourite(i32), // ISSUE: MakeItem, ToggleItem redundant
+    ToggleItemFavourite(i32),
+    UpdateItemUsed(i32),
+    ToggleItemHovered(i32),
+    CopyItemContent(i32),
+    ToggleItemContentCopied(i32),
 
     OpenEditGroupBox(GroupInfo),
     OpenNewItemBox(ItemType),
     OpenEditItemBox(ItemInfo),
     OpenDeleteItemBox(ItemInfo),
-    UpdateItemFavourite(i32, bool),
-    UpdateItemUsed(i32),
+
     None,
 }
 
@@ -76,14 +80,12 @@ impl Group {
         (
             Self {
                 description_collapsed: true,
-                item_list: Vec::new(),
-                item_hovered: None,
-                item_content_copied: None,
                 filter: Filter {
                     command: true,
                     script: true,
                     alphabetical: true,
                 },
+                item_list: Vec::new(),
 
                 pool: None,
             },
@@ -295,30 +297,21 @@ impl Group {
 
                 // Item list
                 scrollable(
-                    column![
-                        center_x(self.item_list
-                            .iter()
-                            .fold(
-                                Column::new()
-                                    .spacing(10),
-                                |column, item| column.push(self.item_card_view(item)),
-                            )
-                        ),
-
-                        space().height(10),
-                    ]
+                    center_x(self.item_list
+                        .iter()
+                        .fold(
+                            Column::new()
+                                .spacing(10),
+                            |column, item| column.push(Self::item_card_view(item)),
+                        )
+                    )
                 )
             ]
             .spacing(15)
         )
         .height(Length::Fill)
         .width(Length::Fill)
-        .padding(Padding {
-            top: 10.0,
-            left: 10.0,
-            right: 10.0,
-            ..Default::default()
-        })
+        .padding(10.0)
         .style(|theme| container::Style {
             border: Border {
                 color: theme.palette().primary,
@@ -330,36 +323,41 @@ impl Group {
         .into()
     }
 
-    fn item_card_view<'a>(&self, item: &'a ItemInfo) -> Element<'a, GroupMessage> {
-        let hovered = self.item_hovered == Some(item.id);
-
-        let content_copied = self.item_content_copied == Some(item.id);
-
-        let (id, icon, name, content, description, tags, is_favourite) = match item.item_type {
+    fn item_card_view<'a>(item: &'a ItemInfo) -> Element<'a, GroupMessage> {
+        let (id, name, content, description, is_favourite, tags, hovered, copied, _description_collapsed) = match item.item_type {
             ItemType::Command => (
                 item.id,
-                match content_copied {
-                    true => icon::copy(),
-                    false => icon::square_terminal(),
-                },
-                &item.name,
+                item.name.as_str(),
                 None,
-                &item.description,
-                item.tags.iter().collect::<Vec<_>>(),
+                item.description.as_str(),
                 item.is_favourite,
+                item.tags.iter().collect::<Vec<_>>(),
+                item.hovered,
+                item.copied,
+                item.description_collapsed,
             ),
             ItemType::Script => (
                 item.id,
-                match content_copied {
-                    true => icon::copy(),
-                    false => icon::code_xml(),
-                },
-                &item.name,
-                Some(&item.content),
-                &item.description,
-                item.tags.iter().collect::<Vec<_>>(),
+                item.name.as_str(),
+                Some(item.content.as_str()),
+                item.description.as_str(),
                 item.is_favourite,
+                item.tags.iter().collect::<Vec<_>>(),
+                item.hovered,
+                item.copied,
+                item.description_collapsed,
             ),
+        };
+
+        let icon = match item.item_type {
+            ItemType::Command => match copied {
+                true => icon::copy(),
+                false => icon::square_terminal(),
+            },
+            ItemType::Script => match copied {
+                true => icon::copy(),
+                false => icon::code_xml(),
+            }
         };
 
         fn tag_view(tag: &str) -> Element<'_, GroupMessage> {
@@ -422,7 +420,7 @@ impl Group {
                             .padding(5),
 
                             // Description
-                            container(match description.as_str() {
+                            container(match description {
                                 "" => text("No description")
                                     .size(15)
                                     .style(|theme: &Theme| text::Style {
@@ -450,13 +448,7 @@ impl Group {
                     )
                     .on_press(GroupMessage::CopyItemContent(
                         id,
-                        match item.item_type {
-                            ItemType::Command => name.to_string(),
-                            ItemType::Script => match content {
-                                Some(content) => content.to_string(),
-                                None => "".to_string(),
-                            },
-                        }
+
                     ))
                     .style(|_, _| button::Style {
                         ..Default::default()
@@ -476,7 +468,7 @@ impl Group {
                             // If the item is a favourite, show the star icon
                             true => container(
                                 button(icon::star().size(16))
-                                    .on_press(GroupMessage::UpdateItemFavourite(id, false))
+                                    .on_press(GroupMessage::MakeItemFavourite(id))
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().warning,
                                         ..Default::default()
@@ -486,7 +478,7 @@ impl Group {
                             false => match hovered {
                                 true => container(
                                     button(icon::star().size(16))
-                                        .on_press(GroupMessage::UpdateItemFavourite(id, true))
+                                        .on_press(GroupMessage::MakeItemFavourite(id))
                                         .style(|theme, _| button::Style {
                                             text_color: theme.palette().primary,
                                             ..Default::default()
@@ -536,8 +528,8 @@ impl Group {
                 ..Default::default()
             })
         )
-        .on_enter(GroupMessage::SetItemHovered(Some(id)))
-        .on_exit(GroupMessage::SetItemHovered(None))
+        .on_enter(GroupMessage::ToggleItemHovered(id))
+        .on_exit(GroupMessage::ToggleItemHovered(id))
         .into()
     }
 
@@ -557,10 +549,6 @@ impl Group {
                     GroupMessage::SetItemList
                 )
             },
-            GroupMessage::ToggleDescriptionCollapsed => {
-                self.description_collapsed = !self.description_collapsed;
-                Task::none()
-            },
             GroupMessage::SetItemList(items) => {
                 match items {
                     Ok(items) => self.item_list = Self::item_row_to_item_info(items),
@@ -574,25 +562,81 @@ impl Group {
                 }
                 Task::none()
             },
+            GroupMessage::ToggleDescriptionCollapsed => {
+                self.description_collapsed = !self.description_collapsed;
+                Task::none()
+            },
             GroupMessage::SetFilter(filter) => {
                 // ISSUE: No items present when both command and script filters are enabled
                 self.filter = filter;
                 Task::done(GroupMessage::LoadGroup)
-            }
-            GroupMessage::SetItemHovered(hovered) => {
-                self.item_hovered = hovered;
-                Task::done(GroupMessage::SetItemContentCopied(None))
             },
-            GroupMessage::SetItemContentCopied(copied) => {
-                self.item_content_copied = copied;
+            GroupMessage::MakeItemFavourite(id) => {
+                let pool = match self.pool.clone() {
+                    Some(pool) => pool,
+                    None => return Task::none(),
+                };
+                let item = match self.find_item(id) {
+                    Some(item) => item,
+                    None => return Task::none(),
+                };
+                Task::perform(
+                    update_item_favourite(pool, id, !item.is_favourite),
+                    move |result| match result {
+                        Ok(_) => GroupMessage::ToggleItemFavourite(id),
+                        Err(_) => GroupMessage::None,
+                    },
+                )
+            },
+            GroupMessage::ToggleItemFavourite(id) => {
+                let item = match self.find_item(id) {
+                    Some(item) => item,
+                    None => return Task::none(),
+                };
+                item.is_favourite = !item.is_favourite;
                 Task::none()
             },
-            GroupMessage::CopyItemContent(id, content) => {
+            GroupMessage::UpdateItemUsed(id) => {
+                let pool = match self.pool.clone() {
+                    Some(pool) => pool,
+                    None => return Task::none(),
+                };
+                Task::perform(
+                    update_item_used(pool, id),
+                    |_| GroupMessage::None, // TODO: Recent group count must be incremented
+                )
+            },
+            GroupMessage::ToggleItemHovered(id) => {
+                let item = match self.find_item(id) {
+                    Some(item) => item,
+                    None => return Task::none(),
+                };
+                item.hovered = !item.hovered;
+                item.copied = false;
+                Task::none()
+            },
+            GroupMessage::CopyItemContent(id) => {
+                let item = match self.find_item(id) {
+                    Some(item) => item,
+                    None => return Task::none(),
+                };
+                let content = match item.item_type {
+                    ItemType::Command => &item.name,
+                    ItemType::Script => &item.content,
+                };
                 Task::batch([
-                    clipboard::write(content),
+                    clipboard::write(content.clone()),
                     Task::done(GroupMessage::UpdateItemUsed(id))
-                        .chain(Task::done(GroupMessage::SetItemContentCopied(Some(id)))),
+                        .chain(Task::done(GroupMessage::ToggleItemContentCopied(id))),
                 ])
+            },
+            GroupMessage::ToggleItemContentCopied(id) => {
+                let item = match self.find_item(id) {
+                    Some(item) => item,
+                    None => return Task::none(),
+                };
+                item.copied = !item.copied;
+                Task::none()
             },
             GroupMessage::OpenEditGroupBox(group) => {
                 *item_box = ItemBox::EditGroup;
@@ -667,26 +711,6 @@ impl Group {
                 };
                 Task::none()
             },
-            GroupMessage::UpdateItemFavourite(id, is_favourite) => {
-                let pool = match self.pool.clone() {
-                    Some(pool) => pool,
-                    None => return Task::none(),
-                };
-                Task::perform(
-                    update_item_favourite(pool, id, is_favourite),
-                    |_| GroupMessage::LoadGroup,
-                )
-            },
-            GroupMessage::UpdateItemUsed(id) => {
-                let pool = match self.pool.clone() {
-                    Some(pool) => pool,
-                    None => return Task::none(),
-                };
-                Task::perform(
-                    update_item_used(pool, id),
-                    |_| GroupMessage::None,
-                )
-            },
             GroupMessage::None => Task::none(),
         }
     }
@@ -709,7 +733,15 @@ impl Group {
                 NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
             }),
             tags: tags,
+
+            hovered: false,
+            copied: false,
+            description_collapsed: true,
         })
         .collect()
+    }
+
+    fn find_item(&mut self, id: i32) -> Option<&mut ItemInfo> {
+        self.item_list.iter_mut().find(|i| i.id == id)
     }
 }

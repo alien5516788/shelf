@@ -15,8 +15,6 @@ use super::{GroupInfo, ItemBox, ItemForm};
 pub struct GroupNavigator {
     pub group_navigator_open: bool,
     pub group_list: Vec<GroupInfo>,
-    pub group_hovered: Option<i32>,
-    pub group_opened: Option<i32>,
 
     pub pool: Option<Arc<SqlitePool>>,
 }
@@ -25,12 +23,11 @@ pub struct GroupNavigator {
 pub enum GroupNavigatorMessage {
     SetPool(Arc<SqlitePool>),
     LoadGroupNavigator,
-    SetGroupList(Result<Vec<GroupRow>, String>),
-    SetGroupHovered(Option<i32>),
-
-    ToggleGroupNavigatorOpen,
-    SetCurrentGroup(GroupInfo),
+    SetCurrentGroup(i32),
     ReloadGroup,
+    SetGroupList(Result<Vec<GroupRow>, String>),
+    ToggleGroupNavigatorOpen,
+    ToggleGroupHovered(i32),
 
     OpenNewGroupBox,
     OpenDeleteGroupBox(GroupInfo),
@@ -42,8 +39,6 @@ impl GroupNavigator {
             Self {
                 group_navigator_open: true,
                 group_list: Vec::new(),
-                group_opened: None,
-                group_hovered: None,
                 pool: None,
             },
 
@@ -51,7 +46,7 @@ impl GroupNavigator {
         )
     }
 
-    pub fn view(&self) -> Element<'_, GroupNavigatorMessage> {
+    pub fn view(&self, current_group: &GroupInfo) -> Element<'_, GroupNavigatorMessage> {
         container(
             column![
                 // Collapse side bar
@@ -105,7 +100,7 @@ impl GroupNavigator {
                         self.group_list.iter().fold(
                             Column::new()
                                 .spacing(10),
-                            |column, group| column.push(self.group_card_view(group)),
+                            |column, group| column.push(Self::group_card_view(group, group.id == current_group.id, &self.group_navigator_open)),
                         )
                     )
                 )
@@ -128,23 +123,20 @@ impl GroupNavigator {
         .into()
     }
 
-    fn group_card_view(&self, group_info: &GroupInfo) -> Element<'_, GroupNavigatorMessage> {
-        let opened = match self.group_opened {
-            Some(id) => id == group_info.id,
-            None => false,
-        };
-
-        let hovered = match self.group_hovered {
-            Some(id) => id == group_info.id,
-            None => false,
-        };
+    fn group_card_view(group: &GroupInfo, selected: bool, collapsed: &bool) -> Element<'static, GroupNavigatorMessage> {
+        let (id, name, item_count, hovered) = (
+            group.id,
+            group.name.as_str(),
+            group.item_count,
+            group.hovered,
+        );
 
         mouse_area(
             button(
                 container(
                     row![
                         // Group icon
-                        match group_info.name.as_str() {
+                        match name {
                             "Recent" => icon::history()
                                 .size(20.0)
                                 .color(Color::from_rgb(0.5, 0.9, 0.9)),
@@ -157,10 +149,10 @@ impl GroupNavigator {
                         },
 
                         // Group details
-                        match self.group_navigator_open {
+                        match collapsed {
                             true => row![
                                 // Group title
-                                text(clamp_name(&group_info.name, 13))
+                                text(clamp_name(name, 13))
                                     .style(|theme: &Theme| text::Style {
                                         color: Some(theme.palette().text),
                                         ..Default::default()
@@ -171,16 +163,16 @@ impl GroupNavigator {
 
                                 // Item count, Delete
                                 match hovered &&
-                                group_info.name.as_str() != "Favourites" &&
-                                group_info.name.as_str() != "Recent" &&
-                                group_info.name.as_str() != "Default"{
+                                name != "Favourites" &&
+                                name != "Recent" &&
+                                name != "Default" {
                                     true => container(
                                         // Trash
                                         button(
                                             icon::trash()
                                                 .size(15)
                                         )
-                                        .on_press(GroupNavigatorMessage::OpenDeleteGroupBox(group_info.clone()))
+                                        .on_press(GroupNavigatorMessage::OpenDeleteGroupBox(group.clone()))
                                         .padding(0)
                                         .style(|theme, _| button::Style {
                                             text_color: theme.palette().danger,
@@ -189,7 +181,7 @@ impl GroupNavigator {
                                     ),
                                     false => container(
                                         // Count
-                                        text(&group_info.item_count)
+                                        text(item_count)
                                             .style(|theme: &Theme| text::Style {
                                                 color: Some(theme.palette().primary),
                                                 ..Default::default()
@@ -212,11 +204,11 @@ impl GroupNavigator {
                 .width(Length::Fill)
                 .align_x(Alignment::Center)
             )
-            .on_press(GroupNavigatorMessage::SetCurrentGroup(group_info.clone()))
+            .on_press(GroupNavigatorMessage::SetCurrentGroup(id))
             .width(Length::Fill)
             .padding(8)
             .style(move |theme, status| button::Style {
-                background: if opened {
+                background: if selected {
                     Some(Background::Color(theme.palette().primary.scale_alpha(0.1)))
                 } else {
                     match status {
@@ -228,8 +220,8 @@ impl GroupNavigator {
                 ..Default::default()
             })
         )
-        .on_enter(GroupNavigatorMessage::SetGroupHovered(Some(group_info.id)))
-        .on_exit(GroupNavigatorMessage::SetGroupHovered(None))
+        .on_enter(GroupNavigatorMessage::ToggleGroupHovered(id))
+        .on_exit(GroupNavigatorMessage::ToggleGroupHovered(id))
         .into()
     }
 
@@ -250,6 +242,19 @@ impl GroupNavigator {
                     GroupNavigatorMessage::SetGroupList
                 )
             },
+            GroupNavigatorMessage::SetCurrentGroup(id) => {
+                let group = match self.find_group(id) {
+                    Some(group) => group,
+                    None => return Task::none(),
+                };
+                *current_group = group.clone();
+                Task::done(GroupNavigatorMessage::ReloadGroup)
+            },
+            GroupNavigatorMessage::ReloadGroup => {
+                // Intercepted by the dashbaord
+                // Group component must be ackknowledge of the reload content of the group
+                Task::none()
+            },
             GroupNavigatorMessage::SetGroupList(groups) => {
                 match groups {
                     Ok(groups) => self.group_list = Self::group_row_to_group_info(groups),
@@ -260,39 +265,24 @@ impl GroupNavigator {
                 }
 
                 // Set current group
-
-                // Check if current group is not deleted in new list
-                // TODO: Two iterations, try optimizing this
-                let current_group_match = self.group_list
-                    .iter()
-                    .find(|group| current_group.id == group.id);
-
-                match current_group_match {
-                    Some(group) => Task::done(GroupNavigatorMessage::SetCurrentGroup(group.clone())),
-                    None => match self.group_list.first() {
-                        // Current group is deleted in new list
-                        // Setting first group as current group
-                        Some(first) => Task::done(GroupNavigatorMessage::SetCurrentGroup(first.clone())),
-                        // Group list is empty
-                        None => Task::done(GroupNavigatorMessage::SetCurrentGroup(GroupInfo::default()))
+                for group in &self.group_list {
+                    if group.id == current_group.id {
+                        return Task::done(GroupNavigatorMessage::SetCurrentGroup(group.id));
                     }
                 }
-            },
-            GroupNavigatorMessage::SetGroupHovered(hovered) => {
-                self.group_hovered = hovered;
-                Task::none()
+
+                Task::done(GroupNavigatorMessage::SetCurrentGroup(1)) // ID of Default group
             },
             GroupNavigatorMessage::ToggleGroupNavigatorOpen =>{
                 self.group_navigator_open = !self.group_navigator_open;
                 Task::none()
             },
-            GroupNavigatorMessage::SetCurrentGroup(current_g) => {
-                self.group_opened = Some(current_g.id);
-                *current_group = current_g;
-                Task::done(GroupNavigatorMessage::ReloadGroup)
-            },
-            GroupNavigatorMessage::ReloadGroup => {
-                // Intercepted by the dashbaord
+            GroupNavigatorMessage::ToggleGroupHovered(id) => {
+                let group = match self.find_group(id) {
+                    Some(group) => group,
+                    None => return Task::none(),
+                };
+                group.hovered = !group.hovered;
                 Task::none()
             },
             GroupNavigatorMessage::OpenNewGroupBox => {
@@ -324,7 +314,13 @@ impl GroupNavigator {
                 name: group.name,
                 description: group.description,
                 item_count: group.item_count as usize,
+
+                hovered: false,
             })
             .collect()
+    }
+
+    fn find_group(&mut self, id: i32) -> Option<&mut GroupInfo> {
+        self.group_list.iter_mut().find(|group| group.id == id)
     }
 }

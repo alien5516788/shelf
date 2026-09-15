@@ -47,6 +47,8 @@ pub struct GroupInfo {
     pub name: String,
     pub description: String,
     pub item_count: usize,
+
+    pub hovered: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -142,7 +144,7 @@ impl Dashboard {
                 row![
                     // Group list
                     group_navigator
-                        .view()
+                        .view(&self.current_group)
                         .map(DashboardMessage::GroupNavigatorMessage),
 
                     // Group
