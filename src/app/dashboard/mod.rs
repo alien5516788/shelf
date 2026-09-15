@@ -4,9 +4,9 @@ mod group;
 mod status_bar;
 
 use std::sync::Arc;
-use iced::border::Radius;
+use iced::theme::Palette;
 use iced::widget::{Row, center, center_y};
-use iced::{Background, Border, Color, Element, Length, Padding, Task, Theme};
+use iced::{Background, Border, Color, Element, Length, Padding, Task, Theme, color};
 use iced::widget::{button, column, container, row, space, stack, text, text::Wrapping, text_editor, text_input, text_editor::{Content, Action}};
 use sqlx::SqlitePool;
 
@@ -168,34 +168,33 @@ impl Dashboard {
 
     fn item_box_view(&self) -> Element<'_, DashboardMessage> {
 
-        let accent_color: Color = match self.item_box {
-            ItemBox::None | ItemBox::NewGroup | ItemBox::NewCommand | ItemBox::NewScript => {
-                Color::from_rgb(0.0, 1.0, 0.0)
-            },
-            ItemBox::EditGroup | ItemBox::EditCommand | ItemBox::EditScript => {
-                Color::from_rgb(0.5, 0.9, 0.9)
-            },
-            ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => {
-                Color::from_rgb(1.0, 0.0, 0.0)
-            },
-        };
+        // ISSUE: Accent color depends on theme palette
+        fn accent_color(item_box: &ItemBox, palette: &Palette) -> Color {
+            match item_box {
+                ItemBox::None | ItemBox::NewGroup | ItemBox::NewCommand | ItemBox::NewScript => {
+                    palette.success
+                },
+                ItemBox::EditGroup | ItemBox::EditCommand | ItemBox::EditScript => {
+                    palette.primary
+                },
+                ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => {
+                    palette.danger
+                },
+            }
+        }
 
-        fn text_input_view<'a, F>(placeholder: &str, value: &'a str, error: bool, on_input: F) -> Element<'a, DashboardMessage>
+        fn text_input_view<'a, F>(placeholder: &str, value: &'a str, error: &'a bool, on_input: F) -> Element<'a, DashboardMessage>
         where F: Fn(String) -> DashboardMessage + 'a
         {
             text_input(placeholder, value)
                 .on_input(on_input)
                 .padding(10)
-                .style(move |theme, _| text_input::Style {
-                    // ISSUE: background and border colors are not consistent with the theme
-                    background: match theme {
-                        Theme::Dracula => Background::Color(Color::from_rgb(0.15, 0.15, 0.18)),
-                        _ => Background::Color(Color::from_rgb(0.9, 0.9, 0.9)),
-                    },
+                .style(move |theme: &Theme, _| text_input::Style {
+                    background: Background::Color(theme.palette().primary.scale_alpha(0.1)),
                     border: Border {
                         color: match error {
-                            true => Color::from_rgb(0.35, 0.35, 0.4),
-                            false => Color::from_rgb(0.3, 0.3, 0.35),
+                            true => theme.palette().danger,
+                            false => theme.palette().primary,
                         },
                         width: match error {
                             true => 1.5,
@@ -203,15 +202,15 @@ impl Dashboard {
                         },
                         radius: 5.0.into(),
                     },
-                    icon: Color::from_rgb(0.6, 0.6, 0.6),
-                    placeholder: Color::from_rgb(0.5, 0.5, 0.55),
-                    value: Color::from_rgb(0.95, 0.95, 0.95),
-                    selection: Color::from_rgb(0.3, 0.5, 0.8),
+                    icon: theme.palette().primary,
+                    placeholder: theme.palette().primary,
+                    value: theme.palette().text,
+                    selection: theme.palette().primary.scale_alpha(0.3),
                 })
                 .into()
         }
 
-        fn text_editor_view<'a, F>(placeholder: &'a str, content: &'a Content, error: bool, on_action: F) -> Element<'a, DashboardMessage>
+        fn text_editor_view<'a, F>(placeholder: &'a str, content: &'a Content, error: &'a bool, on_action: F) -> Element<'a, DashboardMessage>
             where F: Fn(Action) -> DashboardMessage + 'a
         {
             text_editor(content)
@@ -220,15 +219,12 @@ impl Dashboard {
                 .height(Length::Fixed(125.0))
                 .padding(10)
                 .wrapping(Wrapping::WordOrGlyph)
-                .style(move |theme, _| text_editor::Style {
-                    background: match theme {
-                        Theme::Dracula => Background::Color(Color::from_rgb(0.15, 0.15, 0.18)),
-                        _ => Background::Color(Color::from_rgb(0.9, 0.9, 0.9)),
-                    },
+                .style(move |theme: &Theme, _| text_editor::Style {
+                    background: Background::Color(theme.palette().primary.scale_alpha(0.1)),
                     border: Border {
                         color: match error {
-                            true => Color::from_rgb(0.35, 0.35, 0.4),
-                            false => Color::from_rgb(0.3, 0.3, 0.35),
+                            true => theme.palette().danger,
+                            false => theme.palette().primary,
                         },
                         width: match error {
                             true => 1.5,
@@ -236,17 +232,51 @@ impl Dashboard {
                         },
                         radius: 5.0.into(),
                     },
-                    placeholder: Color::from_rgb(0.5, 0.5, 0.55),
-                    value: Color::from_rgb(0.95, 0.95, 0.95),
-                    selection: Color::from_rgb(0.3, 0.5, 0.8),
+                    placeholder: theme.palette().primary,
+                    value: theme.palette().text,
+                    selection: theme.palette().primary.scale_alpha(0.3),
                 })
                 .into()
         }
 
         fn tag_input_view<'a>(
-            tags: &'a [String], tag: &'a str,
-            on_input: impl Fn(String) -> DashboardMessage + 'a, on_add: DashboardMessage, on_remove: impl Fn(usize) -> DashboardMessage + 'a,
+            tags: &'a [String],
+            tag: &'a str,
+            error: &'a bool,
+            on_input: impl Fn(String) -> DashboardMessage + 'a,
+            on_add: DashboardMessage,
+            on_remove: impl Fn(usize) -> DashboardMessage + 'a,
         ) -> Element<'a, DashboardMessage> {
+            fn tag_view(name: &str, on_remove: impl Fn() -> DashboardMessage) -> Element<'_, DashboardMessage> {
+                container(
+                    row![
+                        text(name)
+                            .color(color!(0xF8F8F2))
+                            .size(13),
+
+                        button(icon::x().size(15))
+                            .on_press(on_remove())
+                            .padding(0)
+                            .style(|theme, _| button::Style {
+                                text_color: theme.palette().danger,
+                                ..Default::default()
+                            }),
+                    ]
+                    .spacing(8)
+                    .align_y(iced::Alignment::Center),
+                )
+                .padding([2, 5])
+                .style(|theme| container::Style {
+                    background: Some(Background::Color(theme.palette().primary).scale_alpha(0.6)),
+                    border: Border {
+                        radius: 5.0.into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+                .into()
+            }
+
             column![
                 // Tag list
                 tags
@@ -255,70 +285,59 @@ impl Dashboard {
                     .fold(
                         Row::new()
                             .spacing(5),
-                        |row, (index, name)| {
-                            row.push(
-                                container(
-                                    row![
-                                        text(name.as_str()),
-                                        button(text("x").size(15).color(Color::from_rgb(0.8, 0.0, 0.0)))
-                                            .on_press(on_remove(index))
-                                            .padding(0)
-                                            .style(|_, _| button::Style {
-                                                background: None,
-                                                ..Default::default()
-                                            }),
-                                    ]
-                                    .spacing(8)
-                                    .align_y(iced::Alignment::Center),
-                                )
-                                .padding(5)
-                                .style(|_| container::Style {
-                                    border: Border {
-                                        color: Color::from_rgb(0.4, 0.4, 0.4),
-                                        width: 0.5,
-                                        radius: 5.0.into(),
-                                    },
-                                    ..Default::default()
-                                }),
-                            )
-                        }
+                        |row, (index, name)| row.push(
+                            tag_view(name, || on_remove(index))
+                        )
                     )
                     .wrap(),
 
                 row![
+                    // Input
                     text_input("Tag name", tag)
                         .on_input(on_input)
                         .on_submit(on_add.clone())
                         .padding(10)
-                        .style(|_, _| text_input::Style {
-                            background: Background::Color(Color::from_rgba(0.15, 0.15, 0.18, 1.0)),
+                        .style(move |theme: &Theme, _| text_input::Style {
+                            background: Background::Color(theme.palette().primary.scale_alpha(0.1)),
                             border: Border {
-                                color: Color::from_rgb(0.35, 0.35, 0.4),
-                                width: 1.0,
+                                color: match error {
+                                    true => theme.palette().danger,
+                                    false => theme.palette().primary,
+                                },
+                                width: match error {
+                                    true => 1.5,
+                                    false => 1.0,
+                                },
                                 radius: 5.0.into(),
                             },
-                            icon: Color::from_rgb(0.6, 0.6, 0.6),
-                            placeholder: Color::from_rgb(0.5, 0.5, 0.55),
-                            value: Color::from_rgb(0.95, 0.95, 0.95),
-                            selection: Color::from_rgb(0.3, 0.5, 0.8),
+                            icon: theme.palette().primary,
+                            placeholder: theme.palette().primary,
+                            value: theme.palette().text,
+                            selection: theme.palette().primary.scale_alpha(0.3),
                         }),
 
-                    button(
-                        center_y(icon::plus())
-                    )
+                    // Add
+                    button(center_y(icon::plus()))
                     .on_press(on_add)
-                    .height(40) // TODO: Guessed height
-                    .style(|_, _| button::Style {
+                    .height(40) // ISSUE: Approximate height that fits the input field
+                    .style(|theme, _| button::Style {
+                        text_color: theme.palette().text,
                         border: Border {
+                            color: theme.palette().primary,
+                            width: 1.0,
                             radius: 5.0.into(),
                             ..Default::default()
                         },
-                        background: Some(Background::Color(Color::from_rgb(0.4, 0.4, 0.9))),
                         ..Default::default()
                     }),
                 ]
                 .spacing(5),
             ]
+            .padding(Padding {
+                top: 10.0,
+                bottom: 10.0,
+                ..Default::default()
+            })
             .spacing(5)
             .into()
         }
@@ -328,38 +347,39 @@ impl Dashboard {
                 column![
                     // Box title
                     match &self.item_box {
-                        ItemBox::NewGroup => text("New Group").size(13),
-                        ItemBox::EditGroup => text("Edit Group").size(13),
-                        ItemBox::DeleteGroup => text("Delete Group").size(13),
-                        ItemBox::NewCommand => text("New Command").size(13),
-                        ItemBox::EditCommand => text("Edit Command").size(13),
-                        ItemBox::DeleteCommand => text("Delete Command").size(13),
-                        ItemBox::NewScript => text("New Script").size(13),
-                        ItemBox::EditScript => text("Edit Script").size(13),
-                        ItemBox::DeleteScript => text("Delete Script").size(13),
+                        ItemBox::NewGroup => text("New Group"),
+                        ItemBox::EditGroup => text("Edit Group"),
+                        ItemBox::DeleteGroup => text("Delete Group"),
+                        ItemBox::NewCommand => text("New Command"),
+                        ItemBox::EditCommand => text("Edit Command"),
+                        ItemBox::DeleteCommand => text("Delete Command"),
+                        ItemBox::NewScript => text("New Script"),
+                        ItemBox::EditScript => text("Edit Script"),
+                        ItemBox::DeleteScript => text("Delete Script"),
                         _ => text(""),
                     }
                     .size(18)
-                    .style(move |_| text::Style {
-                        color: Some(accent_color.clone()),
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(accent_color(&self.item_box, &theme.palette())),
                         ..Default::default()
                     }),
 
                     // Error message
                     container(
                         match &self.item_error {
-                            Some(error) => text(error).size(15),
-                            None => text("").size(0.1),
+                            Some(error) => text(error),
+                            None => text(""),
                         }
-                        .style(|_| text::Style {
-                            color: Some(Color::from_rgb(1.0, 0.0, 0.0)),
+                        .size(15)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.palette().danger),
                             ..Default::default()
                         })
                     )
                     .padding(5),
 
 
-                    // Input fields and Tag input or body text
+                    // Input fields, Tag input / Body text
                     match &self.item_box {
                         ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => column![
                             match &self.item_form.name {
@@ -380,69 +400,67 @@ impl Dashboard {
                                         ItemBox::NewCommand | ItemBox::EditCommand => "Content",
                                         _ => "Name",
                                     },
-                                    name, false, |name| DashboardMessage::SetItemFormName(name)
+                                    name, &false, |name| DashboardMessage::SetItemFormName(name)
                                 ),
                                 None => space().into(),
                             },
                             match &self.item_form.content {
-                                Some(content) => text_editor_view("Content", content, false, |action| DashboardMessage::SetItemFormContent(action)),
+                                Some(content) => text_editor_view("Content", content, &false, |action| DashboardMessage::SetItemFormContent(action)),
                                 None => space().into(),
                             },
                             match &self.item_form.description {
-                                Some(description) => text_editor_view("Description (optional)", description, false, |action| DashboardMessage::SetItemFormDescription(action)),
+                                Some(description) => text_editor_view("Description (optional)", description, &false, |action| DashboardMessage::SetItemFormDescription(action)),
                                 None => space().into(),
                             },
                             match &self.item_form.tags {
-                                Some(tags) => tag_input_view(tags, self.item_form.tag.as_deref().unwrap_or(""), |tag| DashboardMessage::SetItemFormTag(tag), DashboardMessage::AddItemFormTag, |index| DashboardMessage::RemoveItemFormTag(index)),
+                                Some(tags) => tag_input_view(tags, self.item_form.tag.as_deref().unwrap_or(""), &false, |tag| DashboardMessage::SetItemFormTag(tag), DashboardMessage::AddItemFormTag, |index| DashboardMessage::RemoveItemFormTag(index)),
                                 None => space().into(),
                             },
 
                         ]
-                        .spacing(20),
+                        .spacing(10),
                     },
 
-                    // Confirm and Cancel buttons
+                    // Confirm, Cancel
                     row![
                         space()
                             .width(Length::Fill),
 
+                        // Cancel
                         button(center(text("Cancel")))
                             .on_press(DashboardMessage::CloseItemBox)
                             .height(40)
                             .width(100)
-                            .style(move |_, _| button::Style {
-                                background: None,
+                            .style(|theme: &Theme, _| button::Style {
                                 border: Border {
-                                    color: accent_color.clone(),
+                                    color: theme.palette().primary,
                                     width: 1.0,
-                                    radius: Radius::from(5),
+                                    radius: 5.into(),
                                 },
-                                text_color: accent_color.clone(),
+                                text_color: theme.palette().text,
                                 ..Default::default()
                             }),
 
                         space()
                             .width(15),
 
+                        // Confirm
                         button(center(
                             text("Confirm")
-                                .style(|theme| text::Style {
-                                    color: match theme {
-                                        Theme::Dracula => Some(Color::from_rgb(0.0, 0.0, 0.0)),
-                                        _ => Some(Color::from_rgb(1.0, 1.0, 1.0)),
-                                    },
+                                .style(|_| text::Style {
+                                    color: Some(color!(0x27374D)),
                                     ..Default::default()
                                 })
                         ))
                         .on_press(DashboardMessage::SubmitItemBox)
                         .height(40)
                         .width(100)
-                        .style(move |_, _| button::Style {
-                            background: Some(Background::Color(accent_color.clone())),
+                        .style(|theme: &Theme, _| button::Style {
+                            background: Some(Background::Color(accent_color(&self.item_box, &theme.palette()))),
                             border: Border {
-                                color: accent_color.clone(),
+                                color: accent_color(&self.item_box, &theme.palette()),
                                 width: 1.0,
-                                radius: Radius::from(5),
+                                radius: 5.into(),
                             },
                             ..Default::default()
                         }),
@@ -453,13 +471,17 @@ impl Dashboard {
                 .padding(30)
                 .spacing(10)
             )
-            .width(425)
+            .width(match &self.item_box {
+                ItemBox::NewGroup | ItemBox::EditGroup |
+                ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => 425,
+                _ => 500,
+            })
             .height(Length::Shrink)
-            .style(move |theme| container::Style {
+            .style(|theme| container::Style {
                 border: Border {
-                    color: accent_color,
+                    color: accent_color(&self.item_box, &theme.palette()),
                     width: 1.0,
-                    radius: Radius::from(10),
+                    radius: 5.into(),
                 },
                 background: Some(Background::from(theme.extended_palette().background.base.color)),
                 ..Default::default()

@@ -1,5 +1,5 @@
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Task, Theme};
-use iced::widget::{button, center_x, container, row, text, text_input};
+use iced::{Alignment, Background, Border, Element, Length, Padding, Task, Theme, color};
+use iced::widget::{button, center_x, container, row, space, text, text_input};
 
 use crate::app::{AppTheme, Screen};
 use crate::icon;
@@ -14,7 +14,7 @@ pub struct Navigator {
 pub enum NavigatorMessage {
     SetScreen(Screen),
     ToggleTheme,
-    SetSearchQuery(String),
+    SetSearchQuery(Option<String>),
 }
 
 impl Navigator {
@@ -33,79 +33,93 @@ impl Navigator {
         container(
             row![
                 // App name
-                button(text(title)
-                    .size(24))
-                    .style(|theme: &Theme, status: button::Status| {
-                        button::Style {
-                            background: None,
-                            border: Border::default(),
-                            text_color: match status {
-                                button::Status::Hovered => Color::from_rgb(0.3, 0.6, 1.0),
-                                _ => theme.palette().text,
-                            },
-                            ..Default::default()
+                button(
+                    text(title)
+                        .size(18))
+                        .style(|theme: &Theme, _| {
+                            button::Style {
+                                border: Border::default(),
+                                text_color: theme.palette().text,
+                                ..Default::default()
+                            }
                         }
-                    })
-                    .padding(0)
-                    .on_press(NavigatorMessage::SetScreen(Screen::Home)),
+                )
+                .padding(0)
+                .on_press(NavigatorMessage::SetScreen(Screen::Home)),
 
                 // Search bar
-                // ISSUE: search bar is fucked. fix this.
                 center_x(
                     container(
-                        text_input("Search...", self.search_query.as_str())
-                            .on_input(|s| NavigatorMessage::SetSearchQuery(s))
-                            .padding(10)
-                            .style(|theme: &Theme, _| text_input::Style {
-                                background: Background::Color(theme.extended_palette().secondary.base.color).scale_alpha(0.0),
-                                border: Border {
-                                    color: theme.extended_palette().secondary.base.color,
-                                    width: 1.0,
+                        row![
+                            // Search button
+                            button(icon::search().size(15))
+                                .style(|theme, _| button::Style {
+                                    text_color: theme.palette().primary,
                                     ..Default::default()
-                                },
-                                icon: theme.extended_palette().secondary.base.color,
-                                placeholder: theme.extended_palette().secondary.base.color,
-                                value: theme.extended_palette().secondary.base.color,
-                                selection: theme.extended_palette().secondary.base.color,
-                            })
+                                }),
+
+                            // Input
+                            text_input("Search", self.search_query.as_str())
+                                .on_input(|query| NavigatorMessage::SetSearchQuery(Some(query)))
+                                .style(|theme: &Theme, _| text_input::Style {
+                                    background: Background::Color(theme.palette().background).scale_alpha(0.0),
+                                    border: Border {
+                                        ..Default::default()
+                                    },
+                                    icon: theme.palette().primary,
+                                    placeholder: theme.palette().primary,
+                                    value: theme.palette().text,
+                                    selection: theme.palette().primary.scale_alpha(0.3),
+                                }),
+
+                            // Clear button
+                            match self.search_query.as_str() {
+                                "" => container(space()),
+                                _ => container(button(icon::x().size(15))
+                                    .on_press(NavigatorMessage::SetSearchQuery(None))
+                                    .style(|theme, _| button::Style {
+                                        text_color: theme.palette().primary,
+                                        ..Default::default()
+                                    })),
+                            }
+                        ]
+                        .align_y(Alignment::Center)
                     )
                     .width(600)
+                    .padding(2)
                     .align_y(Alignment::Center)
-                    .padding(5)
                     .style(|theme: &Theme| container::Style {
                         border: Border {
-                            color: theme.extended_palette().secondary.base.color,
+                            color: theme.palette().primary,
                             width: 1.0,
                             ..Default::default()
                         },
                         ..Default::default()
                     })
                 )
-                .width(Length::Fill),
+                .width(Length::Fill)
+                .padding(3),
 
                 // Shortcuts
                 row![
-                    button(
-                        icon::settings()
-                            .size(20.0)
-                    )
-                    .style(|theme, _| button::Style {
-                        background: None,
-                        text_color: theme.extended_palette().secondary.base.color,
-                        ..Default::default()
-                    })
-                    .on_press(NavigatorMessage::SetScreen(Screen::Settings)),
+                    // Settings
+                    button(icon::settings().size(20.0))
+                        .style(|theme, _| button::Style {
+                            text_color: theme.palette().primary,
+                            ..Default::default()
+                        })
+                        .on_press(NavigatorMessage::SetScreen(Screen::Settings)),
 
+                    // Switch theme
                     button(match theme {
                         AppTheme::Dark => icon::moon()
                             .size(20.0)
-                            .color(Color::from_rgb(0.9, 0.9, 0.5)),
+                            .color(color!(0xF1FA8C)),
                         AppTheme::Light => icon::sun()
                             .size(20.0)
-                            .color(Color::from_rgb(1.0, 0.7, 0.4)),
+                            .color(color!(0xE77B00)),
                     })
                     .style(|_, _| button::Style {
-                        background: None,
                         ..Default::default()
                     })
                     .on_press(NavigatorMessage::ToggleTheme),
@@ -123,7 +137,7 @@ impl Navigator {
         })
         .style(|theme| container::Style {
             border: Border {
-                color: theme.extended_palette().secondary.weak.color,
+                color: theme.palette().primary,
                 width: 0.5,
                 ..Default::default()
             },
@@ -150,7 +164,10 @@ impl Navigator {
                 },
             },
             NavigatorMessage::SetSearchQuery(query) => {
-                self.search_query = query;
+                match query {
+                    Some(q) => self.search_query = q,
+                    None => self.search_query.clear(),
+                }
                 Task::none()
             },
         }

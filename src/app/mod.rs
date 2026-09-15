@@ -3,7 +3,8 @@ mod dashboard;
 mod settings;
 
 use std::sync::Arc;
-use iced::{Element, Task, Theme};
+use iced::theme::Palette;
+use iced::{Element, Task, Theme, color};
 use sqlx::{Pool, Sqlite};
 
 use home::{Home, HomeMessage};
@@ -137,10 +138,29 @@ impl App {
     }
 
     pub fn theme(&self) -> Theme {
-        // TODO: Make a custom simplified dark and light theme
-        match self.theme {
-            AppTheme::Light => Theme::Light,
-            AppTheme::Dark => Theme::Dracula,
-        }
+        Theme::custom(
+            match self.theme {
+                AppTheme::Light => "Shelf Light",
+                AppTheme::Dark => "Shelf Dark",
+            },
+            match self.theme {
+                AppTheme::Light => Palette {
+                    background: color!(0xEDF2F8),
+                    text: color!(0x27374D),
+                    primary: color!(0x526D82),
+                    success: color!(0x07C400),
+                    warning: color!(0xE77B00),
+                    danger: color!(0xF54927),
+                },
+                AppTheme::Dark => Palette {
+                    background: color!(0x282A36),
+                    text: color!(0xF8F8F2),
+                    primary: color!(0x6272A4),
+                    success: color!(0x50FA7B),
+                    warning: color!(0xFFB86C),
+                    danger: color!(0xFF5555),
+                },
+            }
+        )
     }
 }

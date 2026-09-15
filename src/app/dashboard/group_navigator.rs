@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use iced::widget::text_editor::Content;
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Task, Theme};
-use iced::widget::{button, column, container, mouse_area, row, scrollable, space, text};
+use iced::widget::{Column, button, center_x, column, container, mouse_area, row, scrollable, space, text};
 use sqlx::SqlitePool;
 
 use crate::icon;
@@ -55,57 +55,47 @@ impl GroupNavigator {
         container(
             column![
                 // Collapse side bar
-                button(
-                    icon::menu()
-                        .size(20.0)
-                )
-                .style(|theme, _| button::Style {
-                    background: None,
-                    text_color: theme.extended_palette().secondary.base.color,
-                    ..Default::default()
-                })
-                .on_press(GroupNavigatorMessage::ToggleGroupNavigatorOpen),
+                button(icon::menu().size(20.0))
+                    .style(|theme, _| button::Style {
+                        text_color: theme.palette().primary,
+                        ..Default::default()
+                    })
+                    .on_press(GroupNavigatorMessage::ToggleGroupNavigatorOpen),
 
-                // Space
                 space()
-                    .height(Length::Fixed(10.0)),
+                    .height(10.0),
 
-                // Add new group button
+                // Add new group
                 button(
-                    container(
+                    center_x(
                         row![
                             icon::plus()
                                 .size(20.0)
-                                .color(Color::from_rgb(0.3, 0.9, 0.4)),
+                                .style(|theme| text::Style {
+                                    color: Some(theme.palette().success),
+                                    ..Default::default()
+                                }),
 
-                            match self.group_navigator_open {
-                                true => container(
-                                    text("Group")
-                                        .color(Color::from_rgb(0.3, 0.9, 0.4))
-                                ),
-                                false => container(
-                                    space()
-                                )
-                                .width(0),
-                            }
+                            text("Group")
+                                .style(|theme: &Theme| text::Style {
+                                    color: Some(theme.palette().success),
+                                    ..Default::default()
+                                }),
                         ]
-                        .spacing(20)
                         .align_y(Alignment::Center)
+                        .spacing(10)
                     )
-                    .width(Length::Fill)
-                    .align_x(Alignment::Center)
                 )
                 .on_press(GroupNavigatorMessage::OpenNewGroupBox)
-                .style(|_, _| button::Style {
+                .style(|theme: &Theme, _| button::Style {
                     border: Border {
-                        color: Color::from_rgb(0.3, 0.9, 0.4),
+                        color: theme.palette().success,
                         width: 2.0,
                         radius: 4.into(),
                     },
                     ..Default::default()
                 }),
 
-                // Space
                 space()
                     .height(Length::Fixed(20.0)),
 
@@ -113,7 +103,7 @@ impl GroupNavigator {
                 scrollable(
                     container(
                         self.group_list.iter().fold(
-                            column([])
+                            Column::new()
                                 .spacing(10),
                             |column, group| column.push(self.group_card_view(group)),
                         )
@@ -129,7 +119,7 @@ impl GroupNavigator {
         .padding(10)
         .style(|theme| container::Style {
             border: Border {
-                color: theme.extended_palette().secondary.weak.color,
+                color: theme.palette().primary,
                 width: 0.5,
                 ..Default::default()
             },
@@ -153,7 +143,7 @@ impl GroupNavigator {
             button(
                 container(
                     row![
-                        // Card icon
+                        // Group icon
                         match group_info.name.as_str() {
                             "Recent" => icon::history()
                                 .size(20.0)
@@ -166,42 +156,42 @@ impl GroupNavigator {
                                 .color(Color::from_rgb(1.0, 0.7, 0.4)),
                         },
 
-                        // Card details
+                        // Group details
                         match self.group_navigator_open {
                             true => row![
-                                // Card title
+                                // Group title
                                 text(clamp_name(&group_info.name, 13))
                                     .style(|theme: &Theme| text::Style {
-                                        color: Some(theme.extended_palette().secondary.base.color),
+                                        color: Some(theme.palette().text),
                                         ..Default::default()
                                     }),
 
-                                // Space
                                 space()
                                     .width(Length::Fill),
 
-                                // Card item count
+                                // Item count, Delete
                                 match hovered &&
                                 group_info.name.as_str() != "Favourites" &&
                                 group_info.name.as_str() != "Recent" &&
                                 group_info.name.as_str() != "Default"{
                                     true => container(
+                                        // Trash
                                         button(
                                             icon::trash()
-                                                .size(13.0)
-                                                .color(Color::from_rgb(0.9, 0.1, 0.1))
+                                                .size(15)
                                         )
                                         .on_press(GroupNavigatorMessage::OpenDeleteGroupBox(group_info.clone()))
                                         .padding(0)
-                                        .style(|_, _| button::Style {
-                                            background: None,
+                                        .style(|theme, _| button::Style {
+                                            text_color: theme.palette().danger,
                                             ..Default::default()
                                         })
                                     ),
                                     false => container(
+                                        // Count
                                         text(&group_info.item_count)
                                             .style(|theme: &Theme| text::Style {
-                                                color: Some(theme.extended_palette().secondary.base.color),
+                                                color: Some(theme.palette().primary),
                                                 ..Default::default()
                                             })
                                     ),
@@ -227,10 +217,11 @@ impl GroupNavigator {
             .padding(8)
             .style(move |theme, status| button::Style {
                 background: if opened {
-                    Some(Background::Color(theme.extended_palette().secondary.base.color).scale_alpha(0.1))
+                    Some(Background::Color(theme.palette().primary.scale_alpha(0.1)))
                 } else {
                     match status {
-                        button::Status::Hovered | button::Status::Pressed => Some(Background::Color(theme.extended_palette().secondary.base.color).scale_alpha(0.1)),
+                        button::Status::Hovered | button::Status::Pressed =>
+                            Some(Background::Color(theme.palette().primary.scale_alpha(0.1))),
                         _ => None,
                     }
                 },
