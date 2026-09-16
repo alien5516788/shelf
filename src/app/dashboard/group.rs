@@ -9,9 +9,10 @@ use iced::clipboard;
 use sqlx::SqlitePool;
 use sqlx::types::chrono::NaiveDateTime;
 
-use crate::app::dashboard::{GroupInfo, ItemBox, ItemForm};
+use crate::app::dashboard::Dialog;
 use crate::icon;
 use crate::services::item::{ItemRow, load_items_for_group, update_item_favourite, update_item_used};
+use super::{GroupInfo, ItemEditor};
 
 
 #[derive(Debug, Clone)]
@@ -533,7 +534,7 @@ impl Group {
         .into()
     }
 
-    pub fn update(&mut self, message: GroupMessage, current_group: &mut GroupInfo, item_box: &mut ItemBox, item_form: &mut ItemForm) -> Task<GroupMessage> {
+    pub fn update(&mut self, message: GroupMessage, current_group: &mut GroupInfo, item_editor: &mut Option<ItemEditor>) -> Task<GroupMessage> {
         match message {
             GroupMessage::SetPool(pool) => {
                 self.pool = Some(pool);
@@ -639,75 +640,90 @@ impl Group {
                 Task::none()
             },
             GroupMessage::OpenEditGroupBox(group) => {
-                *item_box = ItemBox::EditGroup;
-                *item_form = ItemForm {
-                    id: Some(group.id),
-                    name: Some(group.name),
-                    description: Some(Content::with_text(&group.description)),
-                    ..Default::default()
-                };
+                *item_editor = Some(
+                    ItemEditor {
+                        id: Some(group.id),
+                        name: Some(group.name),
+                        description: Some(Content::with_text(&group.description)),
+                        dialog: Dialog::EditGroup,
+                        ..Default::default()
+                    }
+                );
                 Task::none()
             },
             GroupMessage::OpenNewItemBox(item_type) => {
-                *item_box = match item_type {
-                    ItemType::Command => ItemBox::NewCommand,
-                    ItemType::Script => ItemBox::NewScript,
-                };
                 match item_type {
-                    ItemType::Command => *item_form = ItemForm {
-                        name: Some(String::new()),
-                        description: Some(Content::new()),
-                        tag: Some(String::new()),
-                        tags: Some(Vec::new()),
-                        ..Default::default()
-                    },
-                    ItemType::Script => *item_form = ItemForm {
-                        name: Some(String::new()),
-                        content: Some(Content::new()),
-                        description: Some(Content::new()),
-                        tag: Some(String::new()),
-                        tags: Some(Vec::new()),
-                        ..Default::default()
-                    },
+                    ItemType::Command => *item_editor = Some(
+                        ItemEditor {
+                            name: Some(String::new()),
+                            description: Some(Content::new()),
+                            tag: Some(String::new()),
+                            tags: Some(Vec::new()),
+                            dialog: Dialog::NewCommand,
+                            ..Default::default()
+                        },
+                    ),
+                    ItemType::Script => *item_editor = Some(
+                        ItemEditor {
+                            name: Some(String::new()),
+                            content: Some(Content::new()),
+                            description: Some(Content::new()),
+                            tag: Some(String::new()),
+                            tags: Some(Vec::new()),
+                            dialog: Dialog::NewScript,
+                            ..Default::default()
+                        },
+                    ),
                 }
 
                 Task::none()
             },
             GroupMessage::OpenEditItemBox(item) => {
-                *item_box = match item.item_type {
-                    ItemType::Command => ItemBox::EditCommand,
-                    ItemType::Script => ItemBox::EditScript,
-                };
                 match item.item_type {
-                    ItemType::Command => *item_form = ItemForm {
-                        id: Some(item.id),
-                        name: Some(item.name),
-                        description: Some(Content::with_text(&item.description)),
-                        tag: Some(String::new()),
-                        tags: Some(item.tags),
-                        ..Default::default()
-                    },
-                    ItemType::Script => *item_form = ItemForm {
-                        id: Some(item.id),
-                        name: Some(item.name),
-                        content: Some(Content::with_text(&item.content)),
-                        description: Some(Content::with_text(&item.description)),
-                        tag: Some(String::new()),
-                        tags: Some(item.tags),
-                        ..Default::default()
-                    },
+                    ItemType::Command => *item_editor = Some(
+                        ItemEditor {
+                            id: Some(item.id),
+                            name: Some(item.name),
+                            description: Some(Content::with_text(&item.description)),
+                            tag: Some(String::new()),
+                            tags: Some(item.tags),
+                            dialog: Dialog::EditCommand,
+                            ..Default::default()
+                        }
+                    ),
+                    ItemType::Script => *item_editor = Some(
+                        ItemEditor {
+                            id: Some(item.id),
+                            name: Some(item.name),
+                            content: Some(Content::with_text(&item.content)),
+                            description: Some(Content::with_text(&item.description)),
+                            tag: Some(String::new()),
+                            tags: Some(item.tags),
+                            dialog: Dialog::EditScript,
+                            ..Default::default()
+                        }
+                    ),
                 };
                 Task::none()
             },
             GroupMessage::OpenDeleteItemBox(item) => {
-                *item_box = match item.item_type {
-                    ItemType::Command => ItemBox::DeleteCommand,
-                    ItemType::Script => ItemBox::DeleteScript,
-                };
-                *item_form = ItemForm {
-                    id: Some(item.id),
-                    name: Some(item.name),
-                    ..Default::default()
+                match item.item_type {
+                    ItemType::Command => *item_editor = Some(
+                        ItemEditor {
+                            id: Some(item.id),
+                            name: Some(item.name),
+                            dialog: Dialog::DeleteCommand,
+                            ..Default::default()
+                        }
+                    ),
+                    ItemType::Script => *item_editor = Some(
+                        ItemEditor {
+                            id: Some(item.id),
+                            name: Some(item.name),
+                            dialog: Dialog::DeleteScript,
+                            ..Default::default()
+                        }
+                    ),
                 };
                 Task::none()
             },

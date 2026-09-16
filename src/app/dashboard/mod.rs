@@ -29,9 +29,7 @@ use super::Screen;
 #[derive(Debug, Clone)]
 pub struct Dashboard {
     pub current_group: GroupInfo,
-    pub item_box: ItemBox,
-    pub item_form: ItemForm,
-    pub item_error: Option<String>,
+    pub item_editor: Option<ItemEditor>,
 
     pub navigator: Option<Navigator>,
     pub group_navigator: Option<GroupNavigator>,
@@ -51,9 +49,22 @@ pub struct GroupInfo {
     pub hovered: bool,
 }
 
-#[derive(Debug, Clone)]
-pub enum ItemBox {
-    None,
+#[derive(Debug, Clone, Default)]
+pub struct ItemEditor {
+    pub id: Option<i32>,
+    pub name: Option<String>, // NOTE: For commands, the name field is the content field
+    pub content: Option<Content>,
+    pub description: Option<Content>,
+    pub tag: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub error: Option<String>,
+
+    pub dialog: Dialog,
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum Dialog {
+    #[default]
     NewGroup,
     EditGroup,
     DeleteGroup,
@@ -65,27 +76,18 @@ pub enum ItemBox {
     DeleteScript,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ItemForm {
-    pub id: Option<i32>,
-    pub name: Option<String>, // NOTE: For commands, the content field is the name field
-    pub content: Option<Content>,
-    pub description: Option<Content>,
-    pub tag: Option<String>,
-    pub tags: Option<Vec<String>>,
-}
-
 
 #[derive(Debug, Clone)]
 pub enum DashboardMessage {
     LoadDashboard(Arc<SqlitePool>),
 
-    SetItemFormName(String),
-    SetItemFormContent(Action),
-    SetItemFormDescription(Action),
-    SetItemFormTag(String),
-    AddItemFormTag,
-    RemoveItemFormTag(usize),
+    SetItemEditorName(String),
+    SetItemEditorContent(Action),
+    SetItemEditorDescription(Action),
+    SetItemEditorTag(String),
+    AddToItemEditorTags,
+    RemoveFromItemEditorTags(usize),
+    SetItemEditorError(String),
 
     CloseItemBox, // Immediately closes the item box
     SubmitItemBox, // Emitting Task -> ItemBoxDone without closing
@@ -103,14 +105,11 @@ impl Dashboard {
         (
             Self {
                 current_group: GroupInfo::default(),
-                item_box: ItemBox::None,
-                item_form: ItemForm::default(),
-                item_error: None,
+                item_editor: None,
                 navigator: None,
                 group_navigator: None,
                 group: None,
                 status_bar: None,
-
                 pool: None,
             },
 
@@ -160,26 +159,24 @@ impl Dashboard {
             ],
 
             // Popup to create/edit/delete items
-            match self.item_box {
-                ItemBox::None => space().into(),
-                _ => self.item_box_view(),
+            match &self.item_editor {
+                None => space().into(),
+                Some(editor) => Self::item_editor_view(editor),
             },
         ]
         .into()
     }
 
-    fn item_box_view(&self) -> Element<'_, DashboardMessage> {
-
-        // ISSUE: Accent color depends on theme palette
-        fn accent_color(item_box: &ItemBox, palette: &Palette) -> Color {
+    fn item_editor_view(editor: &ItemEditor) -> Element<'_, DashboardMessage> {
+        fn accent_color(item_box: &Dialog, palette: &Palette) -> Color {
             match item_box {
-                ItemBox::None | ItemBox::NewGroup | ItemBox::NewCommand | ItemBox::NewScript => {
+                Dialog::NewGroup | Dialog::NewCommand | Dialog::NewScript => {
                     palette.success
                 },
-                ItemBox::EditGroup | ItemBox::EditCommand | ItemBox::EditScript => {
+                Dialog::EditGroup | Dialog::EditCommand | Dialog::EditScript => {
                     palette.primary
                 },
-                ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => {
+                Dialog::DeleteGroup | Dialog::DeleteCommand | Dialog::DeleteScript => {
                     palette.danger
                 },
             }
@@ -348,27 +345,26 @@ impl Dashboard {
             container(
                 column![
                     // Box title
-                    match &self.item_box {
-                        ItemBox::NewGroup => text("New Group"),
-                        ItemBox::EditGroup => text("Edit Group"),
-                        ItemBox::DeleteGroup => text("Delete Group"),
-                        ItemBox::NewCommand => text("New Command"),
-                        ItemBox::EditCommand => text("Edit Command"),
-                        ItemBox::DeleteCommand => text("Delete Command"),
-                        ItemBox::NewScript => text("New Script"),
-                        ItemBox::EditScript => text("Edit Script"),
-                        ItemBox::DeleteScript => text("Delete Script"),
-                        _ => text(""),
+                    match &editor.dialog {
+                        Dialog::NewGroup => text("New Group"),
+                        Dialog::EditGroup => text("Edit Group"),
+                        Dialog::DeleteGroup => text("Delete Group"),
+                        Dialog::NewCommand => text("New Command"),
+                        Dialog::EditCommand => text("Edit Command"),
+                        Dialog::DeleteCommand => text("Delete Command"),
+                        Dialog::NewScript => text("New Script"),
+                        Dialog::EditScript => text("Edit Script"),
+                        Dialog::DeleteScript => text("Delete Script"),
                     }
                     .size(18)
                     .style(|theme: &Theme| text::Style {
-                        color: Some(accent_color(&self.item_box, &theme.palette())),
+                        color: Some(accent_color(&editor.dialog, &theme.palette())),
                         ..Default::default()
                     }),
 
                     // Error message
                     container(
-                        match &self.item_error {
+                        match &editor.error {
                             Some(error) => text(error),
                             None => text(""),
                         }
@@ -382,9 +378,9 @@ impl Dashboard {
 
 
                     // Input fields, Tag input / Body text
-                    match &self.item_box {
-                        ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => column![
-                            match &self.item_form.name {
+                    match &editor.dialog {
+                        Dialog::DeleteGroup | Dialog::DeleteCommand | Dialog::DeleteScript => column![
+                            match &editor.name {
                                 Some(name) => container(
                                     text(format!("Are you sure you want to delete '{}' ?", clamp_name(name, 30))).size(13)
                                 )
@@ -396,26 +392,26 @@ impl Dashboard {
                             }
                         ],
                         _ => column![
-                            match &self.item_form.name {
+                            match &editor.name {
                                 Some(name) => text_input_view(
-                                    match self.item_box {
-                                        ItemBox::NewCommand | ItemBox::EditCommand => "Content",
+                                    match &editor.dialog {
+                                        Dialog::NewCommand | Dialog::EditCommand => "Content",
                                         _ => "Name",
                                     },
-                                    name, &false, |name| DashboardMessage::SetItemFormName(name)
+                                    name, &false, |name| DashboardMessage::SetItemEditorName(name)
                                 ),
                                 None => space().into(),
                             },
-                            match &self.item_form.content {
-                                Some(content) => text_editor_view("Content", content, &false, |action| DashboardMessage::SetItemFormContent(action)),
+                            match &editor.content {
+                                Some(content) => text_editor_view("Content", content, &false, |action| DashboardMessage::SetItemEditorContent(action)),
                                 None => space().into(),
                             },
-                            match &self.item_form.description {
-                                Some(description) => text_editor_view("Description (optional)", description, &false, |action| DashboardMessage::SetItemFormDescription(action)),
+                            match &editor.description {
+                                Some(description) => text_editor_view("Description (optional)", description, &false, |action| DashboardMessage::SetItemEditorDescription(action)),
                                 None => space().into(),
                             },
-                            match &self.item_form.tags {
-                                Some(tags) => tag_input_view(tags, self.item_form.tag.as_deref().unwrap_or(""), &false, |tag| DashboardMessage::SetItemFormTag(tag), DashboardMessage::AddItemFormTag, |index| DashboardMessage::RemoveItemFormTag(index)),
+                            match &editor.tags {
+                                Some(tags) => tag_input_view(tags, editor.tag.as_deref().unwrap_or(""), &false, |tag| DashboardMessage::SetItemEditorTag(tag), DashboardMessage::AddToItemEditorTags, |index| DashboardMessage::RemoveFromItemEditorTags(index)),
                                 None => space().into(),
                             },
 
@@ -458,9 +454,9 @@ impl Dashboard {
                         .height(40)
                         .width(100)
                         .style(|theme: &Theme, _| button::Style {
-                            background: Some(Background::Color(accent_color(&self.item_box, &theme.palette()))),
+                            background: Some(Background::Color(accent_color(&editor.dialog, &theme.palette()))),
                             border: Border {
-                                color: accent_color(&self.item_box, &theme.palette()),
+                                color: accent_color(&editor.dialog, &theme.palette()),
                                 width: 1.0,
                                 radius: 5.into(),
                             },
@@ -473,15 +469,15 @@ impl Dashboard {
                 .padding(30)
                 .spacing(10)
             )
-            .width(match &self.item_box {
-                ItemBox::NewGroup | ItemBox::EditGroup |
-                ItemBox::DeleteGroup | ItemBox::DeleteCommand | ItemBox::DeleteScript => 425,
+            .width(match &editor.dialog {
+                Dialog::NewGroup | Dialog::EditGroup |
+                Dialog::DeleteGroup | Dialog::DeleteCommand | Dialog::DeleteScript => 425,
                 _ => 500,
             })
             .height(Length::Shrink)
             .style(|theme| container::Style {
                 border: Border {
-                    color: accent_color(&self.item_box, &theme.palette()),
+                    color: accent_color(&editor.dialog, &theme.palette()),
                     width: 1.0,
                     radius: 5.into(),
                 },
@@ -517,99 +513,126 @@ impl Dashboard {
                     status_bar_task.map(|m| DashboardMessage::StatusBarMessage(m)),
                 ])
             },
-            DashboardMessage::SetItemFormName(nm) => {
-                match &mut self.item_form.name {
-                    Some(name) => *name = nm,
+            DashboardMessage::SetItemEditorName(name) => {
+                match &mut self.item_editor {
+                    Some(editor) => match &mut editor.name {
+                        Some(n) => *n = name,
+                        None => ()
+                    },
                     None => ()
                 }
                 Task::none()
             },
-            DashboardMessage::SetItemFormContent(action) => {
-                match &mut self.item_form.content {
-                    Some(content) => content.perform(action),
+            DashboardMessage::SetItemEditorContent(action) => {
+                match &mut self.item_editor {
+                    Some(editor) => match &mut editor.content {
+                        Some(content) => content.perform(action),
+                        None => ()
+                    },
+                    None => (),
+                }
+                Task::none()
+            },
+            DashboardMessage::SetItemEditorDescription(action) => {
+                match &mut self.item_editor {
+                    Some(editor) => match &mut editor.description {
+                        Some(description) => description.perform(action),
+                        None => ()
+                    },
+                    None => (),
+                }
+                Task::none()
+            },
+            DashboardMessage::SetItemEditorTag(t) => {
+                match &mut self.item_editor {
+                    Some(editor) => match &mut editor.tag {
+                        Some(tag) => *tag = t,
+                        None => ()
+                    },
                     None => ()
                 }
                 Task::none()
             },
-            DashboardMessage::SetItemFormDescription(action) => {
-                match &mut self.item_form.description {
-                    Some(description) => description.perform(action),
-                    None => ()
-                }
-                Task::none()
-            },
-            DashboardMessage::SetItemFormTag(t) => {
-                match &mut self.item_form.tag {
-                    Some(tag) => *tag = t,
-                    None => ()
-                }
-                Task::none()
-            },
-            DashboardMessage::AddItemFormTag => {
-                match &mut self.item_form.tags {
-                    Some(tags) => {
-                        match &mut self.item_form.tag {
-                            Some(tag) => {
+            DashboardMessage::AddToItemEditorTags => {
+                match &mut self.item_editor {
+                    Some(editor) => {
+                        let tag = match &mut editor.tag {
+                            Some(tag) => tag,
+                            None => return Task::none()
+                        };
+                        match &mut editor.tags {
+                            Some(tags) => {
                                 tags.push(tag.clone());
                                 tag.clear();
-                                Task::none()
                             },
-                            None => Task::none(),
+                            None => ()
                         }
                     },
-                    None => Task::none(),
+                    None => ()
                 }
+                Task::none()
             },
-            DashboardMessage::RemoveItemFormTag(idx) => {
-                match &mut self.item_form.tags {
-                    Some(tags) => {
-                        tags.remove(idx);
-                        Task::none()
+            DashboardMessage::RemoveFromItemEditorTags(index) => {
+                match &mut self.item_editor {
+                    Some(editor) => match &mut editor.tags {
+                        Some(tags) => {
+                            tags.remove(index);
+                        },
+                        None => (),
                     },
-                    _ => Task::none(),
+                    None => (),
                 }
+                Task::none()
+            },
+            DashboardMessage::SetItemEditorError(error) => {
+                match &mut self.item_editor {
+                    Some(editor) => editor.error = Some(error),
+                    None => (),
+                }
+                Task::none()
             },
             DashboardMessage::CloseItemBox => {
-                self.item_box = ItemBox::None;
-                self.item_form = ItemForm::default();
-                self.item_error = None;
+                self.item_editor = None;
                 Task::none()
             },
             DashboardMessage::SubmitItemBox => {
-                // Check db pool
-                let Some(pool) = self.pool.clone() else {
-                    self.item_error = Some("Failed to save content".to_string());
-                    eprintln!("Shelf: Failed to save content: no database connection");
-                    return Task::none();
+                let pool = match self.pool.clone() {
+                    Some(pool) => pool,
+                    None => return Task::none(),
+                };
+                let editor = match &self.item_editor {
+                    Some(editor) => editor,
+                    None => return Task::none(),
                 };
 
-                // Extract fields
-                let id = self.item_form.id.unwrap_or(0);
-                let name = self.item_form.name.clone().unwrap_or(String::new());
-                let content = self.item_form.content.clone().unwrap_or(Content::new());
-                let description = self.item_form.description.clone().unwrap_or(Content::new());
-                let tags = self.item_form.tags.clone().unwrap_or(Vec::new());
+                let id = editor.id.unwrap_or(0);
+                let name = editor.name.clone().unwrap_or(String::new());
+                let content = editor.content.clone().unwrap_or(Content::new());
+                let description = editor.description.clone().unwrap_or(Content::new());
+                let tags = editor.tags.clone().unwrap_or(Vec::new());
 
-                match &self.item_box {
-                    ItemBox::NewGroup => {
+                let dialog = &editor.dialog;
+
+                match dialog {
+                    Dialog::NewGroup => {
                         Task::perform(
                             async move { create_group(pool, name, description.text()).await.map(|_| ()) },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::EditGroup => {
+                    Dialog::EditGroup => {
                         Task::perform(
                             async move { update_group(pool, id, name, description.text()).await },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::DeleteGroup => {
+                    Dialog::DeleteGroup => {
                         Task::perform(
                             async move { delete_group(pool, id).await },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::NewCommand => {
+                    Dialog::NewCommand => {
                         let group_id = self.current_group.id;
                         Task::perform(
                             async move {
@@ -620,7 +643,7 @@ impl Dashboard {
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::EditCommand => {
+                    Dialog::EditCommand => {
                         Task::perform(
                             async move {
                                 update_item(pool, id, "command", name, content.text(), description.text(), tags)
@@ -630,7 +653,7 @@ impl Dashboard {
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::NewScript => {
+                    Dialog::NewScript => {
                         let group_id = self.current_group.id;
                         Task::perform(
                             async move {
@@ -641,7 +664,7 @@ impl Dashboard {
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::EditScript => {
+                    Dialog::EditScript => {
                         Task::perform(
                             async move {
                                 update_item(pool, id, "script", name, content.text(), description.text(), tags)
@@ -651,35 +674,35 @@ impl Dashboard {
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    ItemBox::DeleteCommand | ItemBox::DeleteScript => {
+                    Dialog::DeleteCommand | Dialog::DeleteScript => {
                         Task::perform(
                             async move { delete_item(pool, id).await },
                             DashboardMessage::ItemBoxDone,
                         )
                     },
-                    _ => Task::none(),
                 }
             },
             DashboardMessage::ItemBoxDone(result) => {
+                let editor = match &self.item_editor {
+                    Some(editor) => editor,
+                    None => return Task::none(),
+                };
+
                 match result {
                     Ok(()) => {
-                        match self.item_box {
-                            ItemBox::NewGroup | ItemBox::EditGroup | ItemBox::DeleteGroup => {
+                        match editor.dialog {
+                            Dialog::NewGroup | Dialog::EditGroup | Dialog::DeleteGroup => {
                                 Task::done(DashboardMessage::CloseItemBox)
                                     .chain(Task::done(DashboardMessage::GroupNavigatorMessage(GroupNavigatorMessage::LoadGroupNavigator)))
                             },
-                            ItemBox::NewCommand | ItemBox::EditCommand | ItemBox::DeleteCommand
-                            | ItemBox::NewScript | ItemBox::EditScript | ItemBox::DeleteScript => {
+                            Dialog::NewCommand | Dialog::EditCommand | Dialog::DeleteCommand
+                            | Dialog::NewScript | Dialog::EditScript | Dialog::DeleteScript => {
                                 Task::done(DashboardMessage::CloseItemBox)
                                     .chain(Task::done(DashboardMessage::GroupMessage(GroupMessage::LoadGroup)))
                             },
-                            _ => Task::none(),
                         }
                     },
-                    Err(e) => {
-                        self.item_error = Some(e);
-                        Task::none()
-                    }
+                    Err(e) => Task::done(DashboardMessage::SetItemEditorError(e)),
                 }
             },
             DashboardMessage::NavigatorMessage(navigator_m) => match &mut self.navigator {
@@ -692,12 +715,12 @@ impl Dashboard {
                 }
 
                 match &mut self.group_navigator {
-                    Some(group_navigator) => group_navigator.update(group_navigator_m, &mut self.current_group, &mut self.item_box, &mut self.item_form).map(|m| DashboardMessage::GroupNavigatorMessage(m)),
+                    Some(group_navigator) => group_navigator.update(group_navigator_m, &mut self.current_group, &mut self.item_editor).map(|m| DashboardMessage::GroupNavigatorMessage(m)),
                     None => Task::none(),
                 }
             },
             DashboardMessage::GroupMessage(group_m) => match &mut self.group {
-                Some(group) => group.update(group_m, &mut self.current_group, &mut self.item_box, &mut self.item_form).map(|m| DashboardMessage::GroupMessage(m)),
+                Some(group) => group.update(group_m, &mut self.current_group, &mut self.item_editor).map(|m| DashboardMessage::GroupMessage(m)),
                 None => Task::none(),
             },
             DashboardMessage::StatusBarMessage(status_bar_m) => match &mut self.status_bar {

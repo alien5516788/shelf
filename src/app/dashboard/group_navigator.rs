@@ -8,7 +8,7 @@ use sqlx::SqlitePool;
 use crate::icon;
 use crate::services::group::{GroupRow, load_groups};
 use crate::utils::formatting::clamp_name;
-use super::{GroupInfo, ItemBox, ItemForm};
+use super::{GroupInfo, ItemEditor, Dialog};
 
 
 #[derive(Debug, Clone)]
@@ -225,7 +225,7 @@ impl GroupNavigator {
         .into()
     }
 
-    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo, item_box: &mut ItemBox, item_form: &mut ItemForm) -> Task<GroupNavigatorMessage> {
+    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo, item_editor: &mut Option<ItemEditor>) -> Task<GroupNavigatorMessage> {
         match message {
             GroupNavigatorMessage::SetPool(pool) => {
                 self.pool = Some(pool.clone());
@@ -286,21 +286,25 @@ impl GroupNavigator {
                 Task::none()
             },
             GroupNavigatorMessage::OpenNewGroupBox => {
-                *item_box = ItemBox::NewGroup;
-                *item_form = ItemForm {
-                    name: Some(String::new()),
-                    description: Some(Content::new()),
-                    ..Default::default()
-                };
+                *item_editor = Some(
+                    ItemEditor {
+                        name: Some(String::new()),
+                        description: Some(Content::new()),
+                        dialog: Dialog::NewGroup,
+                        ..Default::default()
+                    }
+                );
                 Task::none()
             },
             GroupNavigatorMessage::OpenDeleteGroupBox(group) => {
-                *item_box = ItemBox::DeleteGroup;
-                *item_form = ItemForm {
-                    id: Some(group.id),
-                    name: Some(group.name),
-                    ..Default::default()
-                };
+                *item_editor = Some(
+                    ItemEditor {
+                        id: Some(group.id),
+                        name: Some(group.name),
+                        dialog: Dialog::DeleteGroup,
+                        ..Default::default()
+                    }
+                );
                 Task::none()
             },
         }
