@@ -1,64 +1,413 @@
-use std::sync::Arc;
+use iced::widget::{button, center_x, column, container, row, scrollable, space, text, toggler};
+use iced::{Alignment, Border, Element, Length, Task, Theme};
 
-use iced::{Element, Task};
-use iced::widget::{column, text, button};
-use sqlx::SqlitePool;
-
-use crate::app::Screen;
+use crate::components::status_bar::{StatusMessage, status_bar_view};
+use crate::data::settings::{AppScreen, AppTheme, RunMode, SettingsInfo, ShellKind, TerminalKind, TextSize, get_settings, load_settings, set_settings};
+use crate::utils::logger::log_error;
 
 
 #[derive(Debug)]
 pub struct Settings {
-    pool: Option<Arc<SqlitePool>>
+    setting_list: SettingsInfo,
+    data_dir: String,
+    version: String,
+
+    status_message: StatusMessage,
 }
+
 
 #[derive(Debug, Clone)]
 pub enum SettingsMessage {
-    SetPool(Arc<SqlitePool>),
     LoadSettings,
-    SetScreen(Screen),
+    SetTheme(AppTheme),
+    SetScreen(AppScreen),
+    OpenDataDir,
+    SetStatusMessage(StatusMessage),
+
+    SetThemeSetting(AppTheme),
+    SetScreenSetting(AppScreen),
+    SetTextSize(TextSize),
+    SetShell(ShellKind),
+    SetTerminal(TerminalKind),
+    SetRunMode(RunMode),
+    ToggleKeepOpen(bool),
 }
 
 impl Settings {
-    pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<SettingsMessage>) {
+    pub fn new() -> (Self, Task<SettingsMessage>) {
         (
             Self {
-                pool: None,
+                setting_list: SettingsInfo::default(),
+                data_dir: String::new(),
+                version: String::new(),
+                status_message: StatusMessage::default(),
             },
 
-            Task::done(SettingsMessage::SetPool(pool)),
+            Task::done(SettingsMessage::LoadSettings),
         )
     }
 
     pub fn view(&self) -> Element<'_, SettingsMessage> {
         column![
-            text("Settings Page").size(30),
+            // Settings
+            container(
+                center_x(
+                    column![
+                        // Title
+                        row![
+                            button("Back to Dashboard")
+                                .on_press(SettingsMessage::SetScreen(AppScreen::Dashboard)),
+                            text("Settings").size(28)
+                        ]
+                        .padding(10),
+                        
+                        space().height(12),
 
-            button("Go to Dashboard")
-                .on_press(SettingsMessage::SetScreen(Screen::Dashboard)),
+                        // Controls
+                        scrollable(
+                            self.setting_list_view()
+                        )
+                    ]
+                )
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(|theme: &Theme| container::Style {
+                border: Border {
+                    color: theme.palette().primary,
+                    width: 1.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
+
+            // Status bar
+            status_bar_view(
+                &self.status_message,
+                SettingsMessage::SetStatusMessage(StatusMessage::default()),
+            ),
         ]
-        .spacing(10)
         .into()
     }
 
-    pub fn update(&mut self, message: SettingsMessage, screen: &mut Screen) -> Task<SettingsMessage> {
-        match message {
-            SettingsMessage::SetPool(pool) => {
-                self.pool = Some(pool);
-                Task::done(SettingsMessage::LoadSettings)
-            },
-            SettingsMessage::LoadSettings => {
-                let _pool = match self.pool.clone() {
-                    Some(pool) => pool,
-                    None => return Task::none(),
-                };
+    fn setting_list_view(&self) -> Element<'_, SettingsMessage> {
+        fn section<'a: 'static>(title: &'a str, content: Element<'a, SettingsMessage>) -> Element<'static, SettingsMessage> {
+            container(
+                column![
+                    text(title).size(18),
+                    space().height(8),
+                    content,
+                ]
+                .spacing(6),
+            )
+            .padding(16)
+            .width(Length::Fill)
+            .style(|theme: &Theme| container::Style {
+                border: Border {
+                    color: theme.palette().primary.scale_alpha(0.5),
+                    width: 1.0,
+                    radius: 6.0.into(),
+                },
+                ..Default::default()
+            })
+            .into()
+        }
 
+        fn setting_row<'a: 'static>(label: &'a str, setting: Element<'a, SettingsMessage>) -> Element<'static, SettingsMessage> {
+            row![
+                text(label).width(Length::Fixed(160.0)),
+                setting,
+            ]
+            .spacing(12)
+            .align_y(Alignment::Center)
+            .into()
+        }
+
+        container(
+            column![
+                // Appearance
+                section(
+                    "Appearance",
+
+                    column![
+                        setting_row(
+                            "Theme",
+                            row![
+                                choice(
+                                    "Light",
+                                    self.setting_list.theme == AppTheme::Light,
+                                    SettingsMessage::SetThemeSetting(AppTheme::Light),
+                                ),
+                                choice(
+                                    "Dark",
+                                    self.setting_list.theme == AppTheme::Dark,
+                                    SettingsMessage::SetThemeSetting(AppTheme::Dark),
+                                ),
+                            ]
+                            .spacing(8)
+                            .into(),
+                        ),
+
+                        setting_row(
+                            "Default screen",
+                            row![
+                                choice(
+                                    "Home",
+                                    self.setting_list.screen == AppScreen::Home,
+                                    SettingsMessage::SetScreenSetting(AppScreen::Home),
+                                ),
+                                choice(
+                                    "Dashboard",
+                                    self.setting_list.screen == AppScreen::Dashboard,
+                                    SettingsMessage::SetScreenSetting(AppScreen::Dashboard),
+                                ),
+                                choice(
+                                    "Settings",
+                                    self.setting_list.screen == AppScreen::Settings,
+                                    SettingsMessage::SetScreenSetting(AppScreen::Settings),
+                                ),
+                            ]
+                            .spacing(8)
+                            .into(),
+                        ),
+
+                        setting_row(
+                            "Text size",
+                            row![
+                                choice(
+                                    "Small",
+                                    self.setting_list.text_size == TextSize::Small,
+                                    SettingsMessage::SetTextSize(TextSize::Small),
+                                ),
+                                choice(
+                                    "Normal",
+                                    self.setting_list.text_size == TextSize::Normal,
+                                    SettingsMessage::SetTextSize(TextSize::Normal),
+                                ),
+                                choice(
+                                    "Large",
+                                    self.setting_list.text_size == TextSize::Large,
+                                    SettingsMessage::SetTextSize(TextSize::Large),
+                                ),
+                            ]
+                            .spacing(8)
+                            .into(),
+                        ),
+                    ]
+                    .spacing(12)
+                    .into(),
+                ),
+
+                // Execution
+                section(
+                    "Execution",
+                    column![
+                        setting_row(
+                            "Shell",
+                            row![choice(
+                                "Bash",
+                                self.setting_list.shell == ShellKind::Bash,
+                                SettingsMessage::SetShell(ShellKind::Bash),
+                            )]
+                            .into(),
+                        ),
+
+                        setting_row(
+                            "Terminal",
+                            row![
+                                choice("Gnome", self.setting_list.terminal == TerminalKind::Gnome, SettingsMessage::SetTerminal(TerminalKind::Gnome)),
+                                choice("Konsole", self.setting_list.terminal == TerminalKind::Konsole, SettingsMessage::SetTerminal(TerminalKind::Konsole)),
+                                choice("Kitty", self.setting_list.terminal == TerminalKind::Kitty, SettingsMessage::SetTerminal(TerminalKind::Kitty)),
+                            ]
+                            .spacing(8)
+                            .into(),
+                        ),
+
+                        setting_row(
+                            "On Run",
+                            row![
+                                choice(
+                                    "New window",
+                                    self.setting_list.run_mode == RunMode::NewWindow,
+                                    SettingsMessage::SetRunMode(RunMode::NewWindow),
+                                ),
+                                choice(
+                                    "Reuse session",
+                                    self.setting_list.run_mode == RunMode::ReuseSession,
+                                    SettingsMessage::SetRunMode(RunMode::ReuseSession),
+                                ),
+                            ]
+                            .spacing(8)
+                            .into(),
+                        ),
+
+                        setting_row(
+                            "Keep open",
+                            toggler(self.setting_list.keep_open)
+                                .on_toggle(SettingsMessage::ToggleKeepOpen)
+                                .into(),
+                        ),
+                    ]
+                    .spacing(12)
+                    .into(),
+                ),
+
+                // Data
+                section(
+                    "Data",
+                    column![
+                        setting_row("Directory", text(self.data_dir.clone()).into()),
+                        button("Open folder")
+                            .on_press(SettingsMessage::OpenDataDir),
+                    ]
+                    .spacing(12)
+                    .into(),
+                ),
+
+                // About
+                section(
+                    "About",
+                    column![
+                        setting_row("Version", text(self.version.clone()).into()),
+
+                    ]
+                    .spacing(12)
+                    .into(),
+                ),
+            ]
+            .spacing(14)
+            .padding(20)
+        )
+        .width(800)
+        .into()
+    }
+
+    pub fn update(&mut self, message: SettingsMessage, screen: &mut AppScreen, theme: &mut AppTheme) -> Task<SettingsMessage> {
+        match message {
+            SettingsMessage::LoadSettings => {
+                match load_settings() {
+                    Ok(_) => match get_settings() {
+                        Ok(settings) => {
+                            *theme = settings.theme.clone();
+                            *screen = settings.screen.clone();
+                            self.setting_list = settings;
+                            self.data_dir = "Some/dir".to_string();
+                            self.version = "Version 0.1.0".to_string();
+                            Task::none()
+                        },
+                        Err(e) => {
+                            log_error(&e);
+                            Task::none()
+                        },
+                    },
+                    Err(e) => {
+                        log_error(&e);
+                        Task::none()
+                    },
+                }
+            },
+            SettingsMessage::SetTheme(thm) => {
+                *theme = thm;
                 Task::none()
             },
             SettingsMessage::SetScreen(scrn) => {
                 *screen = scrn;
                 Task::none()
             },
+            SettingsMessage::OpenDataDir => {
+                // TODO: Open data directory
+                Task::none()
+            },
+            SettingsMessage::SetStatusMessage(m) => {
+                self.status_message = m;
+                Task::none()
+            }
+            SettingsMessage::SetThemeSetting(thm) => {
+                match set_settings(|s| s.theme = thm.clone()) {
+                    Ok(_) => self.setting_list.theme = thm.clone(),
+                    Err(e) => log_error(&e),
+                };
+                Task::done(SettingsMessage::SetTheme(thm))
+            },
+            SettingsMessage::SetScreenSetting(screen) => {
+                match set_settings(|s| s.screen = screen.clone()) {
+                    Ok(_) => self.setting_list.screen = screen,
+                    Err(e) => log_error(&e),
+                };
+                Task::none()
+            }
+            SettingsMessage::SetTextSize(size) => {
+                match set_settings(|s| s.text_size = size.clone()) {
+                    Ok(_) => self.setting_list.text_size = size,
+                    Err(e) => log_error(&e),
+                };
+                Task::none()
+            },
+            SettingsMessage::SetShell(shell) => {
+                match set_settings(|s| s.shell = shell.clone()) {
+                    Ok(_) => self.setting_list.shell = shell,
+                    Err(e) => log_error(&e),
+                };
+                Task::none()
+            },
+            SettingsMessage::SetTerminal(terminal) => {
+                match set_settings(|s| s.terminal = terminal.clone()) {
+                    Ok(_) => self.setting_list.terminal = terminal,
+                    Err(e) => log_error(&e),
+                };
+                Task::none()
+            },
+            SettingsMessage::SetRunMode(mode) => {
+                match set_settings(|s| s.run_mode = mode.clone()) {
+                    Ok(_) => self.setting_list.run_mode = mode,
+                    Err(e) => log_error(&e),
+                };
+                Task::none()
+            },
+            SettingsMessage::ToggleKeepOpen(open) => {
+                match set_settings(|s| s.keep_open = open.clone()) {
+                    Ok(_) => self.setting_list.keep_open = open,
+                    Err(e) => log_error(&e),
+                };
+                Task::none()
+            },
         }
     }
+}
+
+fn choice<'a>(
+    label: &'a str,
+    active: bool,
+    on_press: SettingsMessage,
+) -> Element<'a, SettingsMessage> {
+    button(text(label).size(14))
+        .on_press(on_press)
+        .padding([6, 12])
+        .style(move |theme: &Theme, _| {
+            let p = theme.palette();
+            if active {
+                button::Style {
+                    background: Some(p.primary.into()),
+                    text_color: p.text,
+                    border: Border {
+                        color: p.primary,
+                        width: 1.0,
+                        radius: 4.0.into(),
+                    },
+                    ..Default::default()
+                }
+            } else {
+                button::Style {
+                    background: None,
+                    text_color: p.text,
+                    border: Border {
+                        color: p.primary.scale_alpha(0.5),
+                        width: 1.0,
+                        radius: 4.0.into(),
+                    },
+                    ..Default::default()
+                }
+            }
+        })
+        .into()
 }

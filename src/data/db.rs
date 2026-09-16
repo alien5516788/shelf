@@ -5,6 +5,7 @@ use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 
 use crate::data::ensure_data_dir;
+use crate::utils::logger::{log_debug, log_info};
 
 
 const DB_NAME: &str = "shelf.db";
@@ -26,7 +27,7 @@ pub async fn init_db() -> Result<Arc<SqlitePool>, String> {
 
     // Sqlite url
     let url = format!("sqlite:{}", db_path.display());
-    println!("Shelf: Database url: {}", url);
+    log_info(&format!("Database url: {}", url));
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
@@ -35,14 +36,14 @@ pub async fn init_db() -> Result<Arc<SqlitePool>, String> {
         .map_err(|e| format!("Failed to connect to database: {e}"))?;
 
     // Run migrations
-    println!("Shelf: Running migrations");
+    log_debug("Running migrations");
     MIGRATOR
         .run(&pool)
         .await
         .map_err(|e| format!("Migration failed: {e}"))?;
 
     // Create default group
-    println!("Shelf: Creating default group");
+    log_debug("Creating default group");
     create_default_group(&pool)
         .await
         .map_err(|e| format!("Failed to create default group: {e}"))?;
@@ -64,7 +65,7 @@ async fn create_default_group(pool: &SqlitePool) -> Result<(), String> {
     )
     .execute(pool)
     .await
-    .map_err(|e| format!("{}", e))?;
+    .map_err(|e| format!("Failed to create default group: {e}"))?;
 
     Ok(())
 }

@@ -16,12 +16,11 @@ use group::{Group, GroupMessage};
 use crate::components::loading_screen::loading_screen_view;
 use crate::components::modal::modal_view;
 use crate::components::status_bar::{StatusMessage, StatusType, status_bar_view};
+use crate::data::settings::{AppScreen, AppTheme};
 use crate::icon;
 use crate::services::item::{create_item, delete_item, update_item};
 use crate::services::group::{create_group, delete_group, update_group};
 use crate::utils::formatting::clamp_name;
-
-use super::{AppTheme, Screen};
 
 
 #[derive(Debug, Clone)]
@@ -149,8 +148,7 @@ impl Dashboard {
 
                 // Status bar
                 status_bar_view(
-                    &self.status_message.message,
-                    &self.status_message.status,
+                    &self.status_message,
                     DashboardMessage::SetStatusMessage(StatusMessage::default()),
                 )
             ],
@@ -486,7 +484,7 @@ impl Dashboard {
         )
     }
 
-    pub fn update(&mut self, message: DashboardMessage, screen: &mut Screen, theme: &mut AppTheme) -> Task<DashboardMessage> {
+    pub fn update(&mut self, message: DashboardMessage, screen: &mut AppScreen, theme: &mut AppTheme) -> Task<DashboardMessage> {
         match message {
             DashboardMessage::LoadDashboard(pool) => {
                 self.pool = Some(pool.clone());

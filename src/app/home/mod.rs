@@ -1,7 +1,7 @@
 use iced::{Element, Task};
 use iced::widget::{column, text, button};
 
-use crate::app::Screen;
+use crate::data::settings::AppScreen;
 
 
 #[derive(Debug, PartialEq)]
@@ -9,7 +9,7 @@ pub struct Home {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum HomeMessage {
-    SetScreen(Screen),
+    SetScreen(AppScreen),
 }
 
 impl Home {
@@ -25,13 +25,13 @@ impl Home {
             text("Home Page").size(30),
 
             button("Go to Dashboard")
-                .on_press(HomeMessage::SetScreen(Screen::Dashboard)),
+                .on_press(HomeMessage::SetScreen(AppScreen::Dashboard)),
         ]
         .spacing(10)
         .into()
     }
 
-    pub fn update(&mut self, message: HomeMessage, screen: &mut Screen) -> Task<HomeMessage> {
+    pub fn update(&mut self, message: HomeMessage, screen: &mut AppScreen) -> Task<HomeMessage> {
         match message {
             HomeMessage::SetScreen(scrn) => {
                 *screen = scrn;

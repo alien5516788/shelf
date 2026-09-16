@@ -28,11 +28,9 @@ impl StatusMessage {
  * Shows status messges such as error, success etc
  */
 // TODO: Complete the UI
-pub fn status_bar_view<'a, Message: Clone + 'a>(
-    message: &'a Option<String>,
-    _status: &'a StatusType,
-    on_clear: Message,
-) -> Element<'a, Message> {
+pub fn status_bar_view<'a, Message: Clone + 'a>(status_message: &'a StatusMessage, on_clear: Message) -> Element<'a, Message> {
+    let StatusMessage { message, status } = status_message;
+
     container(
         if let Some(message) = message {
             row![
@@ -52,7 +50,7 @@ pub fn status_bar_view<'a, Message: Clone + 'a>(
     .padding(5.0)
     .style(|theme: &Theme| container::Style {
         border: Border {
-            color: theme.extended_palette().secondary.weak.color,
+            color: theme.palette().primary,
             width: 0.5,
             ..Default::default()
         },

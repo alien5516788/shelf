@@ -1,4 +1,5 @@
 pub mod db;
+pub mod settings;
 
 use std::{fs, path::PathBuf};
 use std::sync::OnceLock;
@@ -15,7 +16,6 @@ static DATA_DIR_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub fn ensure_data_dir() -> Result<PathBuf, String> {
     // Data dir already initialized, return cached value
     if let Some(data_dir) = DATA_DIR_PATH.get() {
-        println!("Shelf: Using data directory: {:?}", data_dir);
         return Ok(data_dir.into());
     }
 
@@ -34,7 +34,6 @@ pub fn ensure_data_dir() -> Result<PathBuf, String> {
 
     // Obtain data directory path
     let data_dir = user_dir.join(DATA_DIR_NAME);
-    println!("Shelf: Using data directory: {:?}", data_dir);
 
     // Create data directory if it does not exist
     if !data_dir.exists() {

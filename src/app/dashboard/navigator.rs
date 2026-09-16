@@ -1,7 +1,7 @@
 use iced::{Alignment, Background, Border, Element, Length, Padding, Task, Theme, color};
 use iced::widget::{button, center_x, container, row, space, text, text_input};
 
-use crate::app::{AppTheme, Screen};
+use crate::data::settings::{AppScreen, AppTheme};
 use crate::icon;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -12,7 +12,7 @@ pub struct Navigator {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NavigatorMessage {
-    SetScreen(Screen),
+    SetScreen(AppScreen),
     ToggleTheme,
     SetSearchQuery(Option<String>),
 }
@@ -45,7 +45,7 @@ impl Navigator {
                         }
                 )
                 .padding(0)
-                .on_press(NavigatorMessage::SetScreen(Screen::Home)),
+                .on_press(NavigatorMessage::SetScreen(AppScreen::Home)),
 
                 // Search bar
                 center_x(
@@ -108,7 +108,7 @@ impl Navigator {
                             text_color: theme.palette().primary,
                             ..Default::default()
                         })
-                        .on_press(NavigatorMessage::SetScreen(Screen::Settings)),
+                        .on_press(NavigatorMessage::SetScreen(AppScreen::Settings)),
 
                     // Switch theme
                     button(match theme {
@@ -147,7 +147,7 @@ impl Navigator {
         .into()
     }
 
-    pub fn update(&mut self, message: NavigatorMessage, screen: &mut Screen, theme: &mut AppTheme) -> Task<NavigatorMessage> {
+    pub fn update(&mut self, message: NavigatorMessage, screen: &mut AppScreen, theme: &mut AppTheme) -> Task<NavigatorMessage> {
         match message {
             NavigatorMessage::SetScreen(scrn) => {
                 *screen = scrn;

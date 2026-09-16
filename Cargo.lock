@@ -3272,6 +3272,8 @@ dependencies = [
  "dotenv",
  "iced",
  "iced_lucide",
+ "serde",
+ "serde_json",
  "sqlx",
  "tokio",
 ]

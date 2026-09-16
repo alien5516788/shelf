@@ -13,13 +13,15 @@ use settings::{Settings, SettingsMessage};
 
 use crate::components::loading_screen::loading_screen_view;
 use crate::data::db::init_db;
+use crate::data::settings::{AppScreen, AppTheme, SettingsInfo};
+use crate::utils::logger::{log_debug, log_error};
 
 
 #[derive(Debug)]
 pub struct App {
     title: String,
     theme: AppTheme,
-    screen: Screen,
+    screen: AppScreen,
 
     home: Option<Home>,
     dashboard: Option<Dashboard>,
@@ -36,18 +38,6 @@ pub enum AppMessage {
     SettingsMessage(SettingsMessage),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum AppTheme {
-    Dark,
-    Light,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Screen {
-    Home,
-    Dashboard,
-    Settings,
-}
 
 impl App {
     pub fn new() -> (Self, Task<AppMessage>) {
@@ -55,7 +45,7 @@ impl App {
             Self {
                 title: String::from("Shelf"),
                 theme: AppTheme::Dark,
-                screen: Screen::Dashboard,
+                screen: AppScreen::Home,
 
                 home: None,
                 dashboard: None,
@@ -71,15 +61,15 @@ impl App {
 
     pub fn view(&self) -> Element<'_, AppMessage> {
         match self.screen {
-            Screen::Home => match &self.home {
+            AppScreen::Home => match &self.home {
                 Some(home) => home.view().map(|m| AppMessage::HomeMessage(m)),
                 None => loading_screen_view(),
             },
-            Screen::Dashboard => match &self.dashboard {
+            AppScreen::Dashboard => match &self.dashboard {
                 Some(dashboard) => dashboard.view(&self.title, &self.theme).map(|m| AppMessage::DashboardMessage(m)),
                 None => loading_screen_view(),
             },
-            Screen::Settings => match &self.settings {
+            AppScreen::Settings => match &self.settings {
                 Some(settings) => settings.view().map(|m| AppMessage::SettingsMessage(m)),
                 None => loading_screen_view(),
             },
@@ -90,11 +80,11 @@ impl App {
         match message {
             AppMessage::PoolLoaded(pool) => match pool {
                 Ok(pool) => {
-                    println!("Shelf: Database pool loaded successfully");
+                    log_debug("Database pool loaded successfully");
                     Task::done(AppMessage::LoadApp(pool))
                 },
                 Err(e) => {
-                    eprintln!("Shelf: Failed to create database pool: {}", e);
+                    log_error(&e);
                     Task::none()
                 },
             },
@@ -102,10 +92,10 @@ impl App {
                 let (home, home_task) = Home::new();
                 self.home = Some(home);
 
-                let (dashboard, dashboard_task) = Dashboard::new(pool.clone());
+                let (dashboard, dashboard_task) = Dashboard::new(pool);
                 self.dashboard = Some(dashboard);
 
-                let (settings, settings_task) = Settings::new(pool);
+                let (settings, settings_task) = Settings::new();
                 self.settings = Some(settings);
 
                 Task::batch([
@@ -123,7 +113,7 @@ impl App {
                 None => Task::none(),
             },
             AppMessage::SettingsMessage(settings_m) => match &mut self.settings {
-                Some(settings) => settings.update(settings_m, &mut self.screen).map(|m| AppMessage::SettingsMessage(m)),
+                Some(settings) => settings.update(settings_m, &mut self.screen, &mut self.theme).map(|m| AppMessage::SettingsMessage(m)),
                 None => Task::none(),
             },
         }
@@ -131,9 +121,9 @@ impl App {
 
     pub fn title(&self) -> String {
         match self.screen {
-            Screen::Home => self.title.clone(),
-            Screen::Dashboard => String::from(format!("{} - Dashboard", self.title)),
-            Screen::Settings => String::from(format!("{} - Settings", self.title))
+            AppScreen::Home => self.title.clone(),
+            AppScreen::Dashboard => String::from(format!("{} - Dashboard", self.title)),
+            AppScreen::Settings => String::from(format!("{} - Settings", self.title))
         }
     }
 
