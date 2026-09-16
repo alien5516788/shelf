@@ -13,7 +13,7 @@ use settings::{Settings, SettingsMessage};
 
 use crate::components::loading_screen::loading_screen_view;
 use crate::data::db::init_db;
-use crate::data::settings::{AppScreen, AppTheme, SettingsInfo};
+use crate::data::settings::{AppScreen, AppTheme};
 use crate::utils::logger::{log_debug, log_error};
 
 

@@ -12,6 +12,7 @@ use sqlx::types::chrono::NaiveDateTime;
 use crate::app::dashboard::Dialog;
 use crate::icon;
 use crate::services::item::{ItemRow, load_items_for_group, update_item_favourite, update_item_used};
+use crate::utils::font_size::{sv, sv_16, sv_20};
 use super::{GroupInfo, ItemEditor};
 
 
@@ -107,12 +108,13 @@ impl Group {
                     Span::new(current_group.name.clone()).color(color!(0x276CF5)),
                     Span::new("$ "),
                 ]
+                .size(sv_16())
                 .wrapping(Wrapping::WordOrGlyph),
 
                 // Group controls and filters
                 row![
                     // Command filter
-                    button(icon::square_terminal().size(20.0))
+                    button(icon::square_terminal().size(sv_20()))
                     .on_press(GroupMessage::SetFilter(Filter {
                         command: !self.filter.command,
                         ..self.filter
@@ -124,7 +126,7 @@ impl Group {
                     }),
 
                     // Script filter
-                    button(icon::code_xml().size(20.0))
+                    button(icon::code_xml().size(sv_20()))
                     .on_press(GroupMessage::SetFilter(Filter {
                         script: !self.filter.script,
                         ..self.filter
@@ -138,7 +140,7 @@ impl Group {
                     // Alphabetical filter
                     button(
                         icon::a_large_small()
-                            .size(20.0)
+                            .size(sv_20())
                     )
                     .on_press(GroupMessage::SetFilter(Filter {
                         alphabetical: !self.filter.alphabetical,
@@ -160,7 +162,7 @@ impl Group {
                             // Edit group
                             match current_group.name.as_str() != "Default" {
                                 true => container(
-                                    button(center(icon::pen().size(15.0)))
+                                    button(center(icon::pen().size(sv(15.0))))
                                         .on_press(GroupMessage::OpenEditGroupBox(current_group.clone()))
                                         .height(Length::Shrink)
                                         .width(Length::Shrink)
@@ -180,13 +182,14 @@ impl Group {
                             button(
                                 row![
                                     icon::plus()
-                                        .size(20.0)
+                                        .size(sv_20())
                                         .style(|theme| text::Style {
                                             color: Some(theme.palette().success),
                                             ..Default::default()
                                         }),
 
                                     text("Command")
+                                        .size(sv_16())
                                         .style(|theme: &Theme| text::Style {
                                             color: Some(theme.palette().success),
                                             ..Default::default()
@@ -213,13 +216,14 @@ impl Group {
                             button(
                                 row![
                                     icon::plus()
-                                        .size(20.0)
+                                        .size(sv_20())
                                         .style(|theme| text::Style {
                                             color: Some(theme.palette().success),
                                             ..Default::default()
                                         }),
 
                                     text("Script")
+                                        .size(sv_16())
                                         .style(|theme: &Theme| text::Style {
                                             color: Some(theme.palette().success),
                                             ..Default::default()
@@ -251,7 +255,7 @@ impl Group {
                             // Text
                             container(match current_group.description.as_str() {
                                 "" => text("No description")
-                                    .size(16)
+                                    .size(sv_16())
                                     .font(Font {
                                         family: Family::Monospace,
                                         style: Style::Italic, // ISSUE: Italic not working
@@ -261,7 +265,7 @@ impl Group {
                                         color: Some(theme.palette().primary.scale_alpha(0.5)),
                                     }),
                                 description => text(description.to_string())
-                                    .size(16)
+                                    .size(sv_16())
                                     .style(|theme: &Theme| text::Style {
                                         color: Some(theme.palette().primary),
                                     }),
@@ -272,8 +276,8 @@ impl Group {
                             match current_group.description.as_str() {
                                 "" => container(space()),
                                 _ => container(button(match self.description_open {
-                                        true => icon::chevron_up().size(20.0),
-                                        false => icon::chevron_down().size(20.0),
+                                        true => icon::chevron_up().size(sv_20()),
+                                        false => icon::chevron_down().size(sv_20()),
                                     })
                                     .on_press(GroupMessage::ToggleDescriptionOpen)
                                     .padding(5)
@@ -286,7 +290,7 @@ impl Group {
                     )
                     .height(match self.description_open { // ISSUE: Collapsed height covers half the height of second line
                         true => Length::Shrink,
-                        false => Length::Fixed(20.0 * 2.5),
+                        false => Length::Fixed(sv(20.0 * 2.5)),
                     })
                     .padding(10)
                     .clip(true)
@@ -351,7 +355,7 @@ impl Group {
         fn tag_view(tag: &str) -> Element<'_, GroupMessage> {
             container(
                 text(tag)
-                    .size(13)
+                    .size(sv(13.0))
                     .color(color!(0xF8F8F2))
             )
             .padding([2, 5])
@@ -377,7 +381,7 @@ impl Group {
                             row![
                                 // Icon
                                 icon
-                                    .size(20.0)
+                                    .size(sv_20())
                                     .color(Color::from_rgb(0.3, 0.4, 0.6)),
 
                                 // Name of script / Content of command
@@ -386,7 +390,7 @@ impl Group {
                                     ItemType::Script => name,
                                 })
                                 .wrapping(Wrapping::WordOrGlyph)
-                                .size(15)
+                                .size(sv(15.0))
                                 .style(|theme: &Theme| text::Style {
                                     color: Some(theme.palette().text),
                                     ..Default::default()
@@ -402,7 +406,7 @@ impl Group {
                             match item.item_type {
                                 ItemType::Script => container(
                                     text(content)
-                                    .size(15)
+                                    .size(sv(15.0))
                                     .color(Color::from_rgb(0.5, 0.5, 0.6))
                                 )
                                 .padding(5),
@@ -412,13 +416,13 @@ impl Group {
                             // Description
                             container(match description {
                                 "" => text("No description")
-                                    .size(15)
+                                    .size(sv(15.0))
                                     .style(|theme: &Theme| text::Style {
                                         color: Some(theme.palette().primary.scale_alpha(0.5)),
                                         ..Default::default()
                                     }),
                                 _ => text(description)
-                                    .size(15)
+                                    .size(sv(15.0))
                                     .style(|theme: &Theme| text::Style {
                                         color: Some(theme.palette().primary),
                                         ..Default::default()
@@ -447,7 +451,7 @@ impl Group {
                     // Favourite, Edit, Delete buttons
                     column![
                         // Run
-                        button(icon::play().size(15))
+                        button(icon::play().size(sv(15.0)))
                             .style(|theme, _| button::Style {
                                 text_color: theme.palette().success,
                                 ..Default::default()
@@ -457,7 +461,7 @@ impl Group {
                         match is_favourite {
                             // If the item is a favourite, show the star icon
                             true => container(
-                                button(icon::star().size(16))
+                                button(icon::star().size(sv_16()))
                                     .on_press(GroupMessage::MakeItemFavourite(id))
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().warning,
@@ -467,7 +471,7 @@ impl Group {
                             // If the item is not a favourite, hide the star icon but show the empty star icon on hover
                             false => match hovered {
                                 true => container(
-                                    button(icon::star().size(16))
+                                    button(icon::star().size(sv_16()))
                                         .on_press(GroupMessage::MakeItemFavourite(id))
                                         .style(|theme, _| button::Style {
                                             text_color: theme.palette().primary,
@@ -482,14 +486,14 @@ impl Group {
                         // Show the edit, delete buttons on hover
                         match hovered {
                             true => column![
-                                button(icon::pen().size(15) )
+                                button(icon::pen().size(sv(15.0)))
                                     .on_press(GroupMessage::OpenEditItemBox(item.clone()))
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().primary,
                                         ..Default::default()
                                     }),
 
-                                button(icon::trash().size(15))
+                                button(icon::trash().size(sv(15.0)))
                                     .on_press(GroupMessage::OpenDeleteItemBox(item.clone()))
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().danger,
@@ -502,7 +506,7 @@ impl Group {
                         .width(35)
                         .spacing(10),
                     ]
-                    .height(150) // ISSUE: Approximate height that fits visible icon set
+                    .height(sv(155.0)) // ISSUE: Approximate height that fits visible icon set
                     .spacing(10)
                 ]
             )

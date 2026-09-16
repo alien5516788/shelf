@@ -3,6 +3,7 @@ use iced::{Alignment, Border, Element, Length, Task, Theme};
 
 use crate::components::status_bar::{StatusMessage, status_bar_view};
 use crate::data::settings::{AppScreen, AppTheme, RunMode, SettingsInfo, ShellKind, TerminalKind, TextSize, get_settings, load_settings, set_settings};
+use crate::utils::font_size::sv;
 use crate::utils::logger::log_error;
 
 
@@ -55,13 +56,14 @@ impl Settings {
                     column![
                         // Title
                         row![
-                            button("Back to Dashboard")
+                            button(text("Back to Dashboard").size(sv(20.0)))
                                 .on_press(SettingsMessage::SetScreen(AppScreen::Dashboard)),
-                            text("Settings").size(28)
+                            text("Settings").size(sv(28.0))
                         ]
                         .padding(10),
-                        
-                        space().height(12),
+
+                        space()
+                            .height(12),
 
                         // Controls
                         scrollable(
@@ -94,7 +96,7 @@ impl Settings {
         fn section<'a: 'static>(title: &'a str, content: Element<'a, SettingsMessage>) -> Element<'static, SettingsMessage> {
             container(
                 column![
-                    text(title).size(18),
+                    text(title).size(sv(18.0)),
                     space().height(8),
                     content,
                 ]
@@ -115,7 +117,9 @@ impl Settings {
 
         fn setting_row<'a: 'static>(label: &'a str, setting: Element<'a, SettingsMessage>) -> Element<'static, SettingsMessage> {
             row![
-                text(label).width(Length::Fixed(160.0)),
+                text(label)
+                    .size(sv(15.0))
+                    .width(Length::Fixed(160.0)),
                 setting,
             ]
             .spacing(12)
@@ -133,16 +137,8 @@ impl Settings {
                         setting_row(
                             "Theme",
                             row![
-                                choice(
-                                    "Light",
-                                    self.setting_list.theme == AppTheme::Light,
-                                    SettingsMessage::SetThemeSetting(AppTheme::Light),
-                                ),
-                                choice(
-                                    "Dark",
-                                    self.setting_list.theme == AppTheme::Dark,
-                                    SettingsMessage::SetThemeSetting(AppTheme::Dark),
-                                ),
+                                choice("Light", self.setting_list.theme == AppTheme::Light, SettingsMessage::SetThemeSetting(AppTheme::Light)),
+                                choice("Dark", self.setting_list.theme == AppTheme::Dark, SettingsMessage::SetThemeSetting(AppTheme::Dark)),
                             ]
                             .spacing(8)
                             .into(),
@@ -151,21 +147,9 @@ impl Settings {
                         setting_row(
                             "Default screen",
                             row![
-                                choice(
-                                    "Home",
-                                    self.setting_list.screen == AppScreen::Home,
-                                    SettingsMessage::SetScreenSetting(AppScreen::Home),
-                                ),
-                                choice(
-                                    "Dashboard",
-                                    self.setting_list.screen == AppScreen::Dashboard,
-                                    SettingsMessage::SetScreenSetting(AppScreen::Dashboard),
-                                ),
-                                choice(
-                                    "Settings",
-                                    self.setting_list.screen == AppScreen::Settings,
-                                    SettingsMessage::SetScreenSetting(AppScreen::Settings),
-                                ),
+                                choice("Home", self.setting_list.screen == AppScreen::Home, SettingsMessage::SetScreenSetting(AppScreen::Home)),
+                                choice("Dashboard", self.setting_list.screen == AppScreen::Dashboard, SettingsMessage::SetScreenSetting(AppScreen::Dashboard)),
+                                choice("Settings", self.setting_list.screen == AppScreen::Settings, SettingsMessage::SetScreenSetting(AppScreen::Settings)),
                             ]
                             .spacing(8)
                             .into(),
@@ -174,21 +158,9 @@ impl Settings {
                         setting_row(
                             "Text size",
                             row![
-                                choice(
-                                    "Small",
-                                    self.setting_list.text_size == TextSize::Small,
-                                    SettingsMessage::SetTextSize(TextSize::Small),
-                                ),
-                                choice(
-                                    "Normal",
-                                    self.setting_list.text_size == TextSize::Normal,
-                                    SettingsMessage::SetTextSize(TextSize::Normal),
-                                ),
-                                choice(
-                                    "Large",
-                                    self.setting_list.text_size == TextSize::Large,
-                                    SettingsMessage::SetTextSize(TextSize::Large),
-                                ),
+                                choice("Small", self.setting_list.text_size == TextSize::Small, SettingsMessage::SetTextSize(TextSize::Small)),
+                                choice("Normal", self.setting_list.text_size == TextSize::Normal, SettingsMessage::SetTextSize(TextSize::Normal)),
+                                choice("Large", self.setting_list.text_size == TextSize::Large, SettingsMessage::SetTextSize(TextSize::Large)),
                             ]
                             .spacing(8)
                             .into(),
@@ -204,11 +176,12 @@ impl Settings {
                     column![
                         setting_row(
                             "Shell",
-                            row![choice(
-                                "Bash",
-                                self.setting_list.shell == ShellKind::Bash,
-                                SettingsMessage::SetShell(ShellKind::Bash),
-                            )]
+                            row![
+                                choice("Bash", self.setting_list.shell == ShellKind::Bash, SettingsMessage::SetShell(ShellKind::Bash)),
+                                choice("Fish", self.setting_list.shell == ShellKind::Fish, SettingsMessage::SetShell(ShellKind::Fish)),
+                                choice("PowerShell", self.setting_list.shell == ShellKind::PowerShell, SettingsMessage::SetShell(ShellKind::PowerShell))
+                            ]
+                            .spacing(8)
                             .into(),
                         ),
 
@@ -226,16 +199,8 @@ impl Settings {
                         setting_row(
                             "On Run",
                             row![
-                                choice(
-                                    "New window",
-                                    self.setting_list.run_mode == RunMode::NewWindow,
-                                    SettingsMessage::SetRunMode(RunMode::NewWindow),
-                                ),
-                                choice(
-                                    "Reuse session",
-                                    self.setting_list.run_mode == RunMode::ReuseSession,
-                                    SettingsMessage::SetRunMode(RunMode::ReuseSession),
-                                ),
+                                choice("New window", self.setting_list.run_mode == RunMode::NewWindow, SettingsMessage::SetRunMode(RunMode::NewWindow)),
+                                choice("Reuse session", self.setting_list.run_mode == RunMode::ReuseSession, SettingsMessage::SetRunMode(RunMode::ReuseSession)),
                             ]
                             .spacing(8)
                             .into(),

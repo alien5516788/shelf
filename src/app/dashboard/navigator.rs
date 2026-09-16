@@ -3,6 +3,7 @@ use iced::widget::{button, center_x, container, row, space, text, text_input};
 
 use crate::data::settings::{AppScreen, AppTheme};
 use crate::icon;
+use crate::utils::font_size::{sv, sv_16, sv_20};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Navigator {
@@ -35,7 +36,7 @@ impl Navigator {
                 // App name
                 button(
                     text(title)
-                        .size(18))
+                        .size(sv(18.0)))
                         .style(|theme: &Theme, _| {
                             button::Style {
                                 border: Border::default(),
@@ -52,7 +53,7 @@ impl Navigator {
                     container(
                         row![
                             // Search button
-                            button(icon::search().size(15))
+                            button(icon::search().size(sv(15.0)))
                                 .style(|theme, _| button::Style {
                                     text_color: theme.palette().primary,
                                     ..Default::default()
@@ -61,6 +62,7 @@ impl Navigator {
                             // Input
                             text_input("Search", self.search_query.as_str())
                                 .on_input(|query| NavigatorMessage::SetSearchQuery(Some(query)))
+                                .size(sv_16())
                                 .style(|theme: &Theme, _| text_input::Style {
                                     background: Background::Color(theme.palette().background).scale_alpha(0.0),
                                     border: Border {
@@ -75,7 +77,7 @@ impl Navigator {
                             // Clear button
                             match self.search_query.as_str() {
                                 "" => container(space()),
-                                _ => container(button(icon::x().size(15))
+                                _ => container(button(icon::x().size(sv(15.0)))
                                     .on_press(NavigatorMessage::SetSearchQuery(None))
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().primary,
@@ -85,7 +87,7 @@ impl Navigator {
                         ]
                         .align_y(Alignment::Center)
                     )
-                    .width(600)
+                    .width(sv(600.0))
                     .padding(2)
                     .align_y(Alignment::Center)
                     .style(|theme: &Theme| container::Style {
@@ -103,7 +105,7 @@ impl Navigator {
                 // Shortcuts
                 row![
                     // Settings
-                    button(icon::settings().size(20.0))
+                    button(icon::settings().size(sv_20()))
                         .style(|theme, _| button::Style {
                             text_color: theme.palette().primary,
                             ..Default::default()
@@ -113,10 +115,10 @@ impl Navigator {
                     // Switch theme
                     button(match theme {
                         AppTheme::Dark => icon::moon()
-                            .size(20.0)
+                            .size(sv_20())
                             .color(color!(0xF1FA8C)),
                         AppTheme::Light => icon::sun()
-                            .size(20.0)
+                            .size(sv_20())
                             .color(color!(0xE77B00)),
                     })
                     .style(|_, _| button::Style {

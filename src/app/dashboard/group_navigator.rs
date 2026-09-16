@@ -7,6 +7,7 @@ use sqlx::SqlitePool;
 
 use crate::icon;
 use crate::services::group::{GroupRow, load_groups};
+use crate::utils::font_size::{sv, sv_16, sv_20};
 use crate::utils::formatting::clamp_name;
 use super::{GroupInfo, ItemEditor, Dialog};
 
@@ -50,7 +51,7 @@ impl GroupNavigator {
         container(
             column![
                 // Collapse side bar
-                button(icon::menu().size(20.0))
+                button(icon::menu().size(sv(20.0)))
                     .style(|theme, _| button::Style {
                         text_color: theme.palette().primary,
                         ..Default::default()
@@ -65,13 +66,14 @@ impl GroupNavigator {
                     center_x(
                         row![
                             icon::plus()
-                                .size(20.0)
+                                .size(sv(20.0))
                                 .style(|theme| text::Style {
                                     color: Some(theme.palette().success),
                                     ..Default::default()
                                 }),
 
                             text("Group")
+                                .size(sv_16())
                                 .style(|theme: &Theme| text::Style {
                                     color: Some(theme.palette().success),
                                     ..Default::default()
@@ -108,7 +110,7 @@ impl GroupNavigator {
         )
         .height(Length::Fill)
         .width(match self.open {
-            true => 250,
+            true => sv(250.0) as u32,
             false => 70,
         })
         .padding(10)
@@ -138,13 +140,13 @@ impl GroupNavigator {
                         // Group icon
                         match name {
                             "Recent" => icon::history()
-                                .size(20.0)
+                                .size(sv_20())
                                 .color(Color::from_rgb(0.5, 0.9, 0.9)),
                             "Favourites" => icon::star()
-                                .size(20.0)
+                                .size(sv_20())
                                 .color(Color::from_rgb(0.5, 0.9, 0.9)),
                             _ => icon::group_box()
-                                .size(20.0)
+                                .size(sv_20())
                                 .color(Color::from_rgb(1.0, 0.7, 0.4)),
                         },
 
@@ -153,6 +155,7 @@ impl GroupNavigator {
                             true => row![
                                 // Group title
                                 text(clamp_name(name, 13))
+                                    .size(sv_16())
                                     .style(|theme: &Theme| text::Style {
                                         color: Some(theme.palette().text),
                                         ..Default::default()
@@ -170,7 +173,7 @@ impl GroupNavigator {
                                         // Trash
                                         button(
                                             icon::trash()
-                                                .size(15)
+                                                .size(sv(14.0))
                                         )
                                         .on_press(GroupNavigatorMessage::OpenDeleteGroupBox(group.clone()))
                                         .padding(0)
@@ -182,6 +185,7 @@ impl GroupNavigator {
                                     false => container(
                                         // Count
                                         text(item_count)
+                                            .size(sv(15.0))
                                             .style(|theme: &Theme| text::Style {
                                                 color: Some(theme.palette().primary),
                                                 ..Default::default()

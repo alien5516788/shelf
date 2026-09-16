@@ -2,6 +2,7 @@ use iced::{Element, Task};
 use iced::widget::{column, text, button};
 
 use crate::data::settings::AppScreen;
+use crate::utils::font_size::{sv, sv_20};
 
 
 #[derive(Debug, PartialEq)]
@@ -22,9 +23,9 @@ impl Home {
 
     pub fn view(&self) -> Element<'_, HomeMessage> {
         column![
-            text("Home Page").size(30),
+            text("Home Page").size(sv(30.0)),
 
-            button("Go to Dashboard")
+            button(text("Go to Dashboard").size(sv_20()))
                 .on_press(HomeMessage::SetScreen(AppScreen::Dashboard)),
         ]
         .spacing(10)
