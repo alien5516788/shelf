@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS items (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     group_id      INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
     item_type     TEXT NOT NULL CHECK (item_type IN ('command', 'script')),
-    name          TEXT NOT NULL CHECK (length(trim(name)) > 0), -- content for commands
-    content       TEXT NOT NULL DEFAULT '' CHECK (item_type != 'script' OR length(trim(content)) > 0),
+    name          TEXT CHECK ((item_type = 'command' AND name IS NULL) OR (name IS NOT NULL AND length(trim(name)) > 0)),
+    content       TEXT NOT NULL CHECK (length(trim(content)) > 0),
     description   TEXT NOT NULL DEFAULT '',
     is_favourite  INTEGER NOT NULL DEFAULT 0 CHECK (is_favourite IN (0, 1)),
     last_used_at  TEXT,

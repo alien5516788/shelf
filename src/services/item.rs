@@ -8,7 +8,7 @@ pub struct ItemRow {
     pub id: i32,
     pub group_id: i32,
     pub item_type: String,
-    pub name: String,
+    pub name: Option<String>,
     pub content: String,
     pub description: String,
     pub is_favourite: i32,
@@ -150,12 +150,12 @@ pub async fn create_item(
     group_id: i32,
 
     item_type: &str,
-    name: String,
+    name: Option<String>,
     content: String,
     description: String,
     tags: Vec<String>,
 ) -> Result<i32, String> {
-    let (item_type, name, content, description, tags) = validate_fields(item_type, &name, &content, &description, &tags)?;
+    let (item_type, name, content, description, tags) = validate_fields(item_type, name, content, description, tags)?;
 
     // Insert item
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
@@ -179,16 +179,6 @@ pub async fn create_item(
     let item_id = result.last_insert_rowid() as i32;
 
     for tag in tags {
-        let tag = tag.trim();
-
-        if tag.is_empty() {
-            continue;
-        }
-
-        if tag.len() > 50 {
-            return Err(format!("Tag '{}' is too long (max 50 chars)", tag).into());
-        }
-
         sqlx::query(
             "INSERT OR IGNORE INTO tags (item_id, name) VALUES (?, ?)",
         )
@@ -208,12 +198,12 @@ pub async fn update_item(
     pool: Arc<SqlitePool>,
     id: i32,
     item_type: &str,
-    name: String,
+    name: Option<String>,
     content: String,
     description: String,
     tags: Vec<String>,
 ) -> Result<(), String> {
-    let (_, name, content, description, tags) = validate_fields(item_type, &name, &content, &description, &tags)?;
+    let (_, name, content, description, tags) = validate_fields(item_type, name, content, description, tags)?;
 
     // Update item
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
@@ -242,16 +232,6 @@ pub async fn update_item(
 
     // Reinsert tags
     for tag in tags {
-        let tag = tag.trim();
-
-        if tag.is_empty() {
-            continue;
-        }
-
-        if tag.len() > 50 {
-            return Err(format!("Tag '{}' is too long (max 50 chars)", tag).into());
-        }
-
         sqlx::query(
             "INSERT OR IGNORE INTO tags (item_id, name) VALUES (?, ?)",
         )
@@ -302,57 +282,63 @@ pub async fn delete_item(pool: Arc<SqlitePool>, id: i32) -> Result<(), String> {
     Ok(())
 }
 
-fn validate_fields<'a>(
-    item_type: &'a str,
-    name: &'a str,
-    content: &'a str,
-    description: &'a str,
-    tags: &'a [String],
-) -> Result<(&'a str, &'a str, &'a str, &'a str, &'a [String]), String> {
-    // Item type
-    let item_type = item_type.trim();
+fn validate_fields(
+    item_type: &str,
+    name: Option<String>,
+    content: String,
+    description: String,
+    tags: Vec<String>,
+) -> Result<(String, Option<String>, String, String, Vec<String>), String> {
+    let item_type = item_type.trim().to_string();
+    let name = match name {
+        Some(n) => {
+            let n = n.trim().to_string();
+            if n.is_empty() { None } else { Some(n) }
+        }
+        None => None,
+    };
+    let content = content.trim().to_string();
+    let description = description.trim().to_string();
+    let tags = tags.iter().map(|t| t.trim()).filter(|t| !t.is_empty()).map(|t| t.to_string()).collect::<Vec<_>>();
 
+    // Item type
     if item_type != "command" && item_type != "script" {
         return Err("Invalid item type".into());
     }
 
-    // Empty command content or script name
-    let name = name.trim();
-
-    if name.is_empty() {
-        if item_type == "command" {
-            return Err("Content is required".into());
-        } else {
-            return Err("Name is required".into());
+    // Script name
+    if item_type == "script" {
+        match &name {
+            Some(name) => if name.is_empty() {
+                return Err("Name is required".into());
+            } else if name.len() > 100 {
+                return Err("Name is too long (max 100 chars)".into());
+            }
+            None => return Err("Name is required".into())
         }
     }
 
-    // Command content and script name length
-    if item_type == "command" && name.len() > 1000 {
-        return Err("Content is too long (Max 1000 chars: Use a script instead)".into());
-    }
-
-    if item_type == "script" && name.len() > 255 {
-        return Err("Name is too long (max 255 chars)".into());
-    }
-
-    // Script content
-    let content = content.trim();
-
-    if item_type == "script" && content.is_empty() {
+    // Content
+    if content.is_empty() {
         return Err("Content is required".into());
+    } else if item_type == "command" && content.len() > 500 {
+        return Err("Content is too long (max 500 characters: Use script instead)".into());
     }
 
-    // Description length
-    let description = description.trim();
-
-    if description.len() > 2000 {
-        return Err("Description is too long (max 2000 chars)".into());
+    // Description
+    if description.len() > 1000 {
+        return Err("Description is too long (max 1000 characters)".into());
     }
 
-    // Tag length
-    if tags.len() > 40 {
-        return Err("Too many tags (max 40 tags)".into());
+    // Tags
+    if tags.len() > 30 {
+        return Err("Too many tags (max 30 tags)".into());
+    }
+
+    for tag in &tags {
+        if tag.len() > 20 {
+            return Err(format!("Tag '{}' is too long (max 20 characters)", tag).into());
+        }
     }
 
     Ok((item_type, name, content, description, tags))

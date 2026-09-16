@@ -35,7 +35,7 @@ pub struct Filter {
 pub struct ItemInfo {
     pub id: i32,
     pub item_type: ItemType,
-    pub name: String,
+    pub name: Option<String>,
     pub content: String,
     pub description: String,
     pub is_favourite: bool,
@@ -325,40 +325,27 @@ impl Group {
     }
 
     fn item_card_view<'a>(item: &'a ItemInfo) -> Element<'a, GroupMessage> {
-        let (id, name, content, description, is_favourite, tags, hovered, copied, _description_collapsed) = match item.item_type {
-            ItemType::Command => (
-                item.id,
-                item.name.as_str(),
-                None,
-                item.description.as_str(),
-                item.is_favourite,
-                item.tags.iter().collect::<Vec<_>>(),
-                item.hovered,
-                item.copied,
-                item.description_collapsed,
-            ),
-            ItemType::Script => (
-                item.id,
-                item.name.as_str(),
-                Some(item.content.as_str()),
-                item.description.as_str(),
-                item.is_favourite,
-                item.tags.iter().collect::<Vec<_>>(),
-                item.hovered,
-                item.copied,
-                item.description_collapsed,
-            ),
-        };
-
-        let icon = match item.item_type {
-            ItemType::Command => match copied {
-                true => icon::copy(),
-                false => icon::square_terminal(),
+        let (id, name, content, description, is_favourite, tags, hovered, copied, _description_collapsed) = (
+            item.id,
+            match &item.name {
+                Some(name) => name.as_str(),
+                None => "No name", // never happens
             },
-            ItemType::Script => match copied {
-                true => icon::copy(),
-                false => icon::code_xml(),
-            }
+            item.content.as_str(),
+            item.description.as_str(),
+            item.is_favourite,
+            item.tags.iter().collect::<Vec<_>>(),
+            item.hovered,
+            item.copied,
+            item.description_collapsed,
+        );
+
+        let icon = match copied {
+            true => icon::copy(),
+            false => match item.item_type {
+                ItemType::Command => icon::square_terminal(),
+                ItemType::Script => icon::code_xml(),
+            },
         };
 
         fn tag_view(tag: &str) -> Element<'_, GroupMessage> {
@@ -394,13 +381,16 @@ impl Group {
                                     .color(Color::from_rgb(0.3, 0.4, 0.6)),
 
                                 // Name of script / Content of command
-                                text(name)
-                                    .wrapping(Wrapping::WordOrGlyph)
-                                    .size(15)
-                                    .style(|theme: &Theme| text::Style {
-                                        color: Some(theme.palette().text),
-                                        ..Default::default()
-                                    }),
+                                text(match item.item_type {
+                                    ItemType::Command => content,
+                                    ItemType::Script => name,
+                                })
+                                .wrapping(Wrapping::WordOrGlyph)
+                                .size(15)
+                                .style(|theme: &Theme| text::Style {
+                                    color: Some(theme.palette().text),
+                                    ..Default::default()
+                                }),
 
                                 space().width(Length::Fill),
                             ]
@@ -408,17 +398,16 @@ impl Group {
                             .spacing(8)
                             .align_y(Alignment::Center),
 
-                            // Content
-                            // Only available to scripts
-                            container(
-                                text(match content {
-                                    Some(content) => content,
-                                    None => "No content",
-                                })
-                                .size(15)
-                                .color(Color::from_rgb(0.5, 0.5, 0.6))
-                            )
-                            .padding(5),
+                            // Content of script
+                            match item.item_type {
+                                ItemType::Script => container(
+                                    text(content)
+                                    .size(15)
+                                    .color(Color::from_rgb(0.5, 0.5, 0.6))
+                                )
+                                .padding(5),
+                                ItemType::Command => container(space()),
+                            },
 
                             // Description
                             container(match description {
@@ -621,12 +610,8 @@ impl Group {
                     Some(item) => item,
                     None => return Task::none(),
                 };
-                let content = match item.item_type {
-                    ItemType::Command => &item.name,
-                    ItemType::Script => &item.content,
-                };
                 Task::batch([
-                    clipboard::write(content.clone()),
+                    clipboard::write(item.content.clone()),
                     Task::done(GroupMessage::UpdateItemUsed(id))
                         .chain(Task::done(GroupMessage::ToggleItemContentCopied(id))),
                 ])
@@ -655,7 +640,7 @@ impl Group {
                 match item_type {
                     ItemType::Command => *item_editor = Some(
                         ItemEditor {
-                            name: Some(String::new()),
+                            content: Some(Content::new()),
                             description: Some(Content::new()),
                             tag: Some(String::new()),
                             tags: Some(Vec::new()),
@@ -683,7 +668,7 @@ impl Group {
                     ItemType::Command => *item_editor = Some(
                         ItemEditor {
                             id: Some(item.id),
-                            name: Some(item.name),
+                            content: Some(Content::with_text(&item.content)),
                             description: Some(Content::with_text(&item.description)),
                             tag: Some(String::new()),
                             tags: Some(item.tags),
@@ -694,7 +679,7 @@ impl Group {
                     ItemType::Script => *item_editor = Some(
                         ItemEditor {
                             id: Some(item.id),
-                            name: Some(item.name),
+                            name: Some(item.name.unwrap_or_default()),
                             content: Some(Content::with_text(&item.content)),
                             description: Some(Content::with_text(&item.description)),
                             tag: Some(String::new()),
@@ -711,7 +696,7 @@ impl Group {
                     ItemType::Command => *item_editor = Some(
                         ItemEditor {
                             id: Some(item.id),
-                            name: Some(item.name),
+                            name: Some(item.content), // content is used as name for the delete dialog
                             dialog: Dialog::DeleteCommand,
                             ..Default::default()
                         }
@@ -719,7 +704,7 @@ impl Group {
                     ItemType::Script => *item_editor = Some(
                         ItemEditor {
                             id: Some(item.id),
-                            name: Some(item.name),
+                            name: Some(item.name.unwrap_or_default()),
                             dialog: Dialog::DeleteScript,
                             ..Default::default()
                         }

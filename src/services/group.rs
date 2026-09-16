@@ -77,7 +77,7 @@ pub async fn create_group(
     name: String,
     description: String,
 ) -> Result<i32, String> {
-    let (name, description) = validate_fields(&name, &description)?;
+    let (name, description) = validate_fields(name, description)?;
 
     let result = sqlx::query(
         r#"
@@ -100,7 +100,7 @@ pub async fn update_group(
     name: String,
     description: String,
 ) -> Result<(), String> {
-    let (name, description) = validate_fields(&name, &description)?;
+    let (name, description) = validate_fields(name, description)?;
 
     sqlx::query(
         r#"
@@ -141,11 +141,12 @@ pub async fn delete_group(pool: Arc<SqlitePool>, id: i32) -> Result<(), String> 
     Ok(())
 }
 
-fn validate_fields<'a>(
-    name: &'a str,
-    description: &'a str,
-) -> Result<(&'a str, &'a str), String> {
-    let name = name.trim();
+fn validate_fields(
+    name: String,
+    description: String,
+) -> Result<(String, String), String> {
+    let name = name.trim().to_string();
+    let description = description.trim().to_string();
 
     if name.is_empty() {
         return Err("Group name is required".into());
@@ -158,8 +159,6 @@ fn validate_fields<'a>(
     if name == "Recent" || name == "Favourites" || name == "Default" {
         return Err(format!("Group name '{}' is reserved", name));
     }
-
-    let description = description.trim();
 
     Ok((name, description))
 }

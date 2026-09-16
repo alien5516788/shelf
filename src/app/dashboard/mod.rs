@@ -52,7 +52,7 @@ pub struct GroupInfo {
 #[derive(Debug, Clone, Default)]
 pub struct ItemEditor {
     pub id: Option<i32>,
-    pub name: Option<String>, // NOTE: For commands, the name field is the content field
+    pub name: Option<String>,
     pub content: Option<Content>,
     pub description: Option<Content>,
     pub tag: Option<String>,
@@ -636,7 +636,7 @@ impl Dashboard {
                         let group_id = self.current_group.id;
                         Task::perform(
                             async move {
-                                create_item(pool, group_id, "command", name, content.text(), description.text(), tags)
+                                create_item(pool, group_id, "command", None, content.text(), description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
@@ -646,7 +646,7 @@ impl Dashboard {
                     Dialog::EditCommand => {
                         Task::perform(
                             async move {
-                                update_item(pool, id, "command", name, content.text(), description.text(), tags)
+                                update_item(pool, id, "command", None, content.text(), description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
@@ -657,7 +657,7 @@ impl Dashboard {
                         let group_id = self.current_group.id;
                         Task::perform(
                             async move {
-                                create_item(pool, group_id, "script", name, content.text(), description.text(), tags)
+                                create_item(pool, group_id, "script", Some(name), content.text(), description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
@@ -667,7 +667,7 @@ impl Dashboard {
                     Dialog::EditScript => {
                         Task::perform(
                             async move {
-                                update_item(pool, id, "script", name, content.text(), description.text(), tags)
+                                update_item(pool, id, "script", Some(name), content.text(), description.text(), tags)
                                     .await
                                     .map(|_| ())
                             },
