@@ -265,13 +265,19 @@ impl GroupNavigator {
                 }
 
                 // Set current group
+                let mut default_group_id = 0;
+
                 for group in &self.group_list {
                     if group.id == current_group.id {
+                        // Current group found, return it
                         return Task::done(GroupNavigatorMessage::SetCurrentGroup(group.id));
+                    } else if group.name == "Default" {
+                        // Default group found, store its id as fallback
+                        default_group_id = group.id;
                     }
                 }
 
-                Task::done(GroupNavigatorMessage::SetCurrentGroup(1)) // ID of Default group
+                Task::done(GroupNavigatorMessage::SetCurrentGroup(default_group_id))
             },
             GroupNavigatorMessage::ToggleOpen =>{
                 self.open = !self.open;

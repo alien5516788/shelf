@@ -1,7 +1,6 @@
 mod navigator;
 mod group_navigator;
 mod group;
-mod status_bar;
 
 use std::sync::Arc;
 use iced::theme::Palette;
@@ -13,28 +12,27 @@ use sqlx::SqlitePool;
 use navigator::{Navigator, NavigatorMessage};
 use group_navigator::{GroupNavigator, GroupNavigatorMessage};
 use group::{Group, GroupMessage};
-use status_bar::{StatusBar, StatusBarMessage};
 
-use crate::app::AppTheme;
 use crate::components::loading_screen::loading_screen_view;
 use crate::components::modal::modal_view;
+use crate::components::status_bar::{StatusMessage, StatusType, status_bar_view};
 use crate::icon;
 use crate::services::item::{create_item, delete_item, update_item};
 use crate::services::group::{create_group, delete_group, update_group};
 use crate::utils::formatting::clamp_name;
 
-use super::Screen;
+use super::{AppTheme, Screen};
 
 
 #[derive(Debug, Clone)]
 pub struct Dashboard {
     pub current_group: GroupInfo,
     pub item_editor: Option<ItemEditor>,
+    pub status_message: StatusMessage,
 
     pub navigator: Option<Navigator>,
     pub group_navigator: Option<GroupNavigator>,
     pub group: Option<Group>,
-    pub status_bar: Option<StatusBar>,
 
     pub pool: Option<Arc<SqlitePool>>
 }
@@ -80,6 +78,7 @@ pub enum Dialog {
 #[derive(Debug, Clone)]
 pub enum DashboardMessage {
     LoadDashboard(Arc<SqlitePool>),
+    SetStatusMessage(StatusMessage),
 
     SetItemEditorName(String),
     SetItemEditorContent(Action),
@@ -96,7 +95,6 @@ pub enum DashboardMessage {
     NavigatorMessage(NavigatorMessage),
     GroupNavigatorMessage(GroupNavigatorMessage),
     GroupMessage(GroupMessage),
-    StatusBarMessage(StatusBarMessage),
 }
 
 
@@ -106,10 +104,10 @@ impl Dashboard {
             Self {
                 current_group: GroupInfo::default(),
                 item_editor: None,
+                status_message: StatusMessage::default(),
                 navigator: None,
                 group_navigator: None,
                 group: None,
-                status_bar: None,
                 pool: None,
             },
 
@@ -125,9 +123,6 @@ impl Dashboard {
             return loading_screen_view();
         };
         let Some(group) = &self.group else {
-            return loading_screen_view();
-        };
-        let Some(status_bar) = &self.status_bar else {
             return loading_screen_view();
         };
 
@@ -153,9 +148,11 @@ impl Dashboard {
                 ],
 
                 // Status bar
-                status_bar
-                    .view()
-                    .map(DashboardMessage::StatusBarMessage),
+                status_bar_view(
+                    &self.status_message.message,
+                    &self.status_message.status,
+                    DashboardMessage::SetStatusMessage(StatusMessage::default()),
+                )
             ],
 
             // Popup to create/edit/delete items
@@ -503,15 +500,15 @@ impl Dashboard {
                 let (group, group_task) = Group::new(pool);
                 self.group = Some(group);
 
-                let (status_bar, status_bar_task) = StatusBar::new();
-                self.status_bar = Some(status_bar);
-
                 Task::batch([
                     navigator_task.map(|m| DashboardMessage::NavigatorMessage(m)),
                     group_navigator_task.map(|m| DashboardMessage::GroupNavigatorMessage(m)),
                     group_task.map(|m| DashboardMessage::GroupMessage(m)),
-                    status_bar_task.map(|m| DashboardMessage::StatusBarMessage(m)),
                 ])
+            },
+            DashboardMessage::SetStatusMessage(message) => {
+                self.status_message = message;
+                Task::none()
             },
             DashboardMessage::SetItemEditorName(name) => {
                 match &mut self.item_editor {
@@ -721,10 +718,6 @@ impl Dashboard {
             },
             DashboardMessage::GroupMessage(group_m) => match &mut self.group {
                 Some(group) => group.update(group_m, &mut self.current_group, &mut self.item_editor).map(|m| DashboardMessage::GroupMessage(m)),
-                None => Task::none(),
-            },
-            DashboardMessage::StatusBarMessage(status_bar_m) => match &mut self.status_bar {
-                Some(status_bar) => status_bar.update(status_bar_m).map(|m| DashboardMessage::StatusBarMessage(m)),
                 None => Task::none(),
             },
         }
