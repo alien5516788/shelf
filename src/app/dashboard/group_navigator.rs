@@ -13,7 +13,7 @@ use super::{GroupInfo, ItemEditor, Dialog};
 
 #[derive(Debug, Clone)]
 pub struct GroupNavigator {
-    pub group_navigator_open: bool,
+    pub open: bool,
     pub group_list: Vec<GroupInfo>,
 
     pub pool: Option<Arc<SqlitePool>>,
@@ -26,7 +26,7 @@ pub enum GroupNavigatorMessage {
     SetCurrentGroup(i32),
     ReloadGroup,
     SetGroupList(Result<Vec<GroupRow>, String>),
-    ToggleGroupNavigatorOpen,
+    ToggleOpen,
     ToggleGroupHovered(i32),
 
     OpenNewGroupBox,
@@ -37,7 +37,7 @@ impl GroupNavigator {
     pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<GroupNavigatorMessage>) {
         (
             Self {
-                group_navigator_open: true,
+                open: true,
                 group_list: Vec::new(),
                 pool: None,
             },
@@ -55,7 +55,7 @@ impl GroupNavigator {
                         text_color: theme.palette().primary,
                         ..Default::default()
                     })
-                    .on_press(GroupNavigatorMessage::ToggleGroupNavigatorOpen),
+                    .on_press(GroupNavigatorMessage::ToggleOpen),
 
                 space()
                     .height(10.0),
@@ -100,14 +100,14 @@ impl GroupNavigator {
                         self.group_list.iter().fold(
                             Column::new()
                                 .spacing(10),
-                            |column, group| column.push(Self::group_card_view(group, group.id == current_group.id, &self.group_navigator_open)),
+                            |column, group| column.push(Self::group_card_view(group, group.id == current_group.id, &self.open)),
                         )
                     )
                 )
             ]
         )
         .height(Length::Fill)
-        .width(match self.group_navigator_open {
+        .width(match self.open {
             true => 250,
             false => 70,
         })
@@ -123,7 +123,7 @@ impl GroupNavigator {
         .into()
     }
 
-    fn group_card_view(group: &GroupInfo, selected: bool, collapsed: &bool) -> Element<'static, GroupNavigatorMessage> {
+    fn group_card_view(group: &GroupInfo, selected: bool, open: &bool) -> Element<'static, GroupNavigatorMessage> {
         let (id, name, item_count, hovered) = (
             group.id,
             group.name.as_str(),
@@ -149,7 +149,7 @@ impl GroupNavigator {
                         },
 
                         // Group details
-                        match collapsed {
+                        match open {
                             true => row![
                                 // Group title
                                 text(clamp_name(name, 13))
@@ -273,8 +273,8 @@ impl GroupNavigator {
 
                 Task::done(GroupNavigatorMessage::SetCurrentGroup(1)) // ID of Default group
             },
-            GroupNavigatorMessage::ToggleGroupNavigatorOpen =>{
-                self.group_navigator_open = !self.group_navigator_open;
+            GroupNavigatorMessage::ToggleOpen =>{
+                self.open = !self.open;
                 Task::none()
             },
             GroupNavigatorMessage::ToggleGroupHovered(id) => {

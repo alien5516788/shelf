@@ -17,7 +17,7 @@ use super::{GroupInfo, ItemEditor};
 
 #[derive(Debug, Clone)]
 pub struct Group {
-    description_collapsed: bool,
+    description_open: bool,
     filter: Filter,
     item_list: Vec<ItemInfo>,
 
@@ -44,7 +44,7 @@ pub struct ItemInfo {
 
     pub hovered: bool,
     pub copied: bool,
-    pub description_collapsed: bool,
+    pub description_open: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,7 +59,7 @@ pub enum GroupMessage {
     SetPool(Arc<SqlitePool>),
     LoadGroup,
     SetItemList(Result<Vec<(ItemRow, Vec<String>)>, String>),
-    ToggleDescriptionCollapsed,
+    ToggleDescriptionOpen,
     SetFilter(Filter),
     MakeItemFavourite(i32), // ISSUE: MakeItem, ToggleItem redundant
     ToggleItemFavourite(i32),
@@ -80,7 +80,7 @@ impl Group {
     pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<GroupMessage>) {
         (
             Self {
-                description_collapsed: true,
+                description_open: false,
                 filter: Filter {
                     command: true,
                     script: true,
@@ -160,16 +160,15 @@ impl Group {
                             // Edit group
                             match current_group.name.as_str() != "Default" {
                                 true => container(
-                                    button(center(
-                                        icon::pen().size(15.0)
-                                    ))
-                                    .on_press(GroupMessage::OpenEditGroupBox(current_group.clone()))
-                                    .height(40)
-                                    .width(40)
-                                    .style(|theme, _| button::Style {
-                                        text_color: theme.palette().primary,
-                                        ..Default::default()
-                                    })
+                                    button(center(icon::pen().size(15.0)))
+                                        .on_press(GroupMessage::OpenEditGroupBox(current_group.clone()))
+                                        .height(Length::Shrink)
+                                        .width(Length::Shrink)
+                                        .padding(5)
+                                        .style(|theme, _| button::Style {
+                                            text_color: theme.palette().primary,
+                                            ..Default::default()
+                                        })
                                 ),
                                 false => container(space()),
                             },
@@ -272,11 +271,12 @@ impl Group {
                             // Collapse button
                             match current_group.description.as_str() {
                                 "" => container(space()),
-                                _ => container(button(match self.description_collapsed {
-                                        true => icon::chevron_down().size(20.0),
-                                        false => icon::chevron_up().size(20.0),
+                                _ => container(button(match self.description_open {
+                                        true => icon::chevron_up().size(20.0),
+                                        false => icon::chevron_down().size(20.0),
                                     })
-                                    .on_press(GroupMessage::ToggleDescriptionCollapsed)
+                                    .on_press(GroupMessage::ToggleDescriptionOpen)
+                                    .padding(5)
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().primary,
                                         ..Default::default()
@@ -284,9 +284,9 @@ impl Group {
                             }
                         ]
                     )
-                    .height(match self.description_collapsed { // ISSUE: Collapsed height covers half the height of second line
-                        true => Length::Fixed(20.0 * 2.5),
-                        false => Length::Shrink,
+                    .height(match self.description_open { // ISSUE: Collapsed height covers half the height of second line
+                        true => Length::Shrink,
+                        false => Length::Fixed(20.0 * 2.5),
                     })
                     .padding(10)
                     .clip(true)
@@ -337,7 +337,7 @@ impl Group {
             item.tags.iter().collect::<Vec<_>>(),
             item.hovered,
             item.copied,
-            item.description_collapsed,
+            item.description_open,
         );
 
         let icon = match copied {
@@ -552,8 +552,8 @@ impl Group {
                 }
                 Task::none()
             },
-            GroupMessage::ToggleDescriptionCollapsed => {
-                self.description_collapsed = !self.description_collapsed;
+            GroupMessage::ToggleDescriptionOpen => {
+                self.description_open = !self.description_open;
                 Task::none()
             },
             GroupMessage::SetFilter(filter) => {
@@ -737,7 +737,7 @@ impl Group {
 
             hovered: false,
             copied: false,
-            description_collapsed: true,
+            description_open: false,
         })
         .collect()
     }
