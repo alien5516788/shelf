@@ -4,8 +4,8 @@ mod group;
 
 use std::sync::Arc;
 use iced::theme::Palette;
-use iced::widget::{Row, center, center_y};
-use iced::{Background, Border, Color, Element, Length, Padding, Task, Theme, color};
+use iced::widget::{Column, Row, center, center_y, scrollable};
+use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Task, Theme, color};
 use iced::widget::{button, column, container, row, space, stack, text, text::Wrapping, text_editor, text_input, text_editor::{Content, Action}};
 use sqlx::SqlitePool;
 
@@ -13,13 +13,15 @@ use navigator::{Navigator, NavigatorMessage};
 use group_navigator::{GroupNavigator, GroupNavigatorMessage};
 use group::{Group, GroupMessage};
 
+use crate::app::dashboard::navigator::SearchInfo;
 use crate::components::loading_screen::loading_screen_view;
 use crate::components::modal::modal_view;
-use crate::components::status_bar::{StatusMessage, StatusType, status_bar_view};
+use crate::components::status_bar::{StatusMessage, status_bar_view};
 use crate::data::settings::{AppScreen, AppTheme};
 use crate::icon;
 use crate::services::item::{create_item, delete_item, update_item};
 use crate::services::group::{create_group, delete_group, update_group};
+use crate::utils::font_size::{sv, sv_16, sv_20};
 use crate::utils::formatting::clamp_name;
 
 
@@ -27,6 +29,7 @@ use crate::utils::formatting::clamp_name;
 pub struct Dashboard {
     pub current_group: GroupInfo,
     pub item_editor: Option<ItemEditor>,
+    pub search_result: Option<Vec<SearchInfo>>,
     pub status_message: StatusMessage,
 
     pub navigator: Option<Navigator>,
@@ -87,9 +90,12 @@ pub enum DashboardMessage {
     RemoveFromItemEditorTags(usize),
     SetItemEditorError(String),
 
-    CloseItemBox, // Immediately closes the item box
-    SubmitItemBox, // Emitting Task -> ItemBoxDone without closing
-    ItemBoxDone(Result<(), String>), // Closes or Display error
+    CloseItemEditor, // Immediately closes the item box
+    SubmitItemForm, // Emitting Task -> ItemBoxDone without closing
+    ItemEditorDone(Result<(), String>), // Closes or Display error
+
+    ClearSearchResult,
+    ScrollToSearchResult(i32, i32),
 
     NavigatorMessage(NavigatorMessage),
     GroupNavigatorMessage(GroupNavigatorMessage),
@@ -103,6 +109,7 @@ impl Dashboard {
             Self {
                 current_group: GroupInfo::default(),
                 item_editor: None,
+                search_result: None,
                 status_message: StatusMessage::default(),
                 navigator: None,
                 group_navigator: None,
@@ -133,17 +140,25 @@ impl Dashboard {
                     .view(title.clone(), theme)
                     .map(DashboardMessage::NavigatorMessage),
 
-                // Group view
-                row![
-                    // Group list
-                    group_navigator
-                        .view(&self.current_group)
-                        .map(DashboardMessage::GroupNavigatorMessage),
+                stack![
+                    // Group view
+                    row![
+                        // Group list
+                        group_navigator
+                            .view(&self.current_group)
+                            .map(DashboardMessage::GroupNavigatorMessage),
 
-                    // Group
-                    group
-                        .view(&self.current_group)
-                        .map(DashboardMessage::GroupMessage),
+                        // Group
+                        group
+                            .view(&self.current_group)
+                            .map(DashboardMessage::GroupMessage),
+                    ],
+
+                    // Search result
+                    match &self.search_result {
+                        None => space().into(),
+                        Some(result) => Self::serach_result_view(result),
+                    }
                 ],
 
                 // Status bar
@@ -182,6 +197,7 @@ impl Dashboard {
         {
             text_input(placeholder, value)
                 .on_input(on_input)
+                .size(sv_16())
                 .padding(10)
                 .style(move |theme: &Theme, _| text_input::Style {
                     background: Background::Color(theme.palette().primary.scale_alpha(0.1)),
@@ -210,7 +226,8 @@ impl Dashboard {
             text_editor(content)
                 .on_action(on_action)
                 .placeholder(placeholder)
-                .height(Length::Fixed(125.0))
+                .size(sv_16())
+                .height(125.0)
                 .padding(10)
                 .wrapping(Wrapping::WordOrGlyph)
                 .style(move |theme: &Theme, _| text_editor::Style {
@@ -246,9 +263,9 @@ impl Dashboard {
                     row![
                         text(name)
                             .color(color!(0xF8F8F2))
-                            .size(13),
+                            .size(sv(13.0)),
 
-                        button(icon::x().size(15))
+                        button(icon::x().size(sv(15.0)))
                             .on_press(on_remove())
                             .padding(0)
                             .style(|theme, _| button::Style {
@@ -290,6 +307,7 @@ impl Dashboard {
                     text_input("Tag name", tag)
                         .on_input(on_input)
                         .on_submit(on_add.clone())
+                        .size(sv_16())
                         .padding(10)
                         .style(move |theme: &Theme, _| text_input::Style {
                             background: Background::Color(theme.palette().primary.scale_alpha(0.1)),
@@ -311,9 +329,9 @@ impl Dashboard {
                         }),
 
                     // Add
-                    button(center_y(icon::plus()))
+                    button(center_y(icon::plus().size(sv_20())))
                     .on_press(on_add)
-                    .height(40) // ISSUE: Approximate height that fits the input field
+                    .height(sv(40.0)) // ISSUE: Approximate height that fits the input field
                     .style(|theme, _| button::Style {
                         text_color: theme.palette().text,
                         border: Border {
@@ -351,7 +369,7 @@ impl Dashboard {
                         Dialog::EditScript => text("Edit Script"),
                         Dialog::DeleteScript => text("Delete Script"),
                     }
-                    .size(18)
+                    .size(sv(18.0))
                     .style(|theme: &Theme| text::Style {
                         color: Some(accent_color(&editor.dialog, &theme.palette())),
                         ..Default::default()
@@ -363,7 +381,7 @@ impl Dashboard {
                             Some(error) => text(error),
                             None => text(""),
                         }
-                        .size(15)
+                        .size(sv(15.0))
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.palette().danger),
                             ..Default::default()
@@ -377,7 +395,7 @@ impl Dashboard {
                         Dialog::DeleteGroup | Dialog::DeleteCommand | Dialog::DeleteScript => column![
                             match &editor.name {
                                 Some(name) => container(
-                                    text(format!("Are you sure you want to delete '{}' ?", clamp_name(name, 30))).size(13)
+                                    text(format!("Are you sure you want to delete '{}' ?", clamp_name(name, 30))).size(sv(13.0))
                                 )
                                 .padding(Padding {
                                     bottom: 15.0,
@@ -420,19 +438,21 @@ impl Dashboard {
                             .width(Length::Fill),
 
                         // Cancel
-                        button(center(text("Cancel")))
-                            .on_press(DashboardMessage::CloseItemBox)
-                            .height(40)
-                            .width(100)
-                            .style(|theme: &Theme, _| button::Style {
-                                border: Border {
-                                    color: theme.palette().primary,
-                                    width: 1.0,
-                                    radius: 5.into(),
-                                },
-                                text_color: theme.palette().text,
-                                ..Default::default()
-                            }),
+                        button(center(
+                            text("Cancel").size(sv_16())
+                        ))
+                        .on_press(DashboardMessage::CloseItemEditor)
+                        .height(40)
+                        .width(100)
+                        .style(|theme: &Theme, _| button::Style {
+                            border: Border {
+                                color: theme.palette().primary,
+                                width: 1.0,
+                                radius: 5.into(),
+                            },
+                            text_color: theme.palette().text,
+                            ..Default::default()
+                        }),
 
                         space()
                             .width(15),
@@ -440,12 +460,13 @@ impl Dashboard {
                         // Confirm
                         button(center(
                             text("Confirm")
+                                .size(sv_16())
                                 .style(|_| text::Style {
                                     color: Some(color!(0x27374D)),
                                     ..Default::default()
                                 })
                         ))
-                        .on_press(DashboardMessage::SubmitItemBox)
+                        .on_press(DashboardMessage::SubmitItemForm)
                         .height(40)
                         .width(100)
                         .style(|theme: &Theme, _| button::Style {
@@ -466,8 +487,8 @@ impl Dashboard {
             )
             .width(match &editor.dialog {
                 Dialog::NewGroup | Dialog::EditGroup |
-                Dialog::DeleteGroup | Dialog::DeleteCommand | Dialog::DeleteScript => 425,
-                _ => 500,
+                Dialog::DeleteGroup | Dialog::DeleteCommand | Dialog::DeleteScript => 430.0,
+                _ => sv(500.0),
             })
             .height(Length::Shrink)
             .style(|theme| container::Style {
@@ -480,8 +501,107 @@ impl Dashboard {
                 ..Default::default()
             }),
 
-            DashboardMessage::CloseItemBox
+            DashboardMessage::CloseItemEditor,
+
+            0.4
         )
+    }
+
+    pub fn serach_result_view(result: &Vec<SearchInfo>) -> Element<'_, DashboardMessage> {
+        fn result_item_view(item: &SearchInfo) -> Element<'_, DashboardMessage>  {
+            let (id, name, item_icon, group_id, group_name) = (
+                item.id,
+                item.name.as_str(),
+                match item.item_type.as_str() {
+                    "command" => icon::square_terminal(),
+                    _ => icon::code_xml(),
+                },
+                item.group_id,
+                item.group_name.as_str(),
+            );
+
+            button(
+                row![
+                    item_icon
+                        .size(sv_16())
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.palette().primary),
+                            ..Default::default()
+                        }),
+
+                    text(name)
+                        .size(sv(15.0))
+                        .wrapping(Wrapping::None),
+
+                    space()
+                        .width(Length::Fill),
+
+                    icon::group_box()
+                        .size(sv(14.0))
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.palette().primary),
+                            ..Default::default()
+                        }),
+
+                    text(group_name)
+                        .size(sv(13.0))
+                        .wrapping(Wrapping::None)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.palette().text.scale_alpha(0.5)),
+                            ..Default::default()
+                        }),
+                ]
+                .padding([6, 10])
+                .spacing(10)
+                .align_y(Alignment::Center)
+                .width(Length::Fill)
+            )
+            .width(Length::Fill)
+            .on_press(DashboardMessage::ScrollToSearchResult(id, group_id))
+            .style(|theme: &Theme, _| {
+                button::Style {
+                    background: Some(Background::Color(theme.palette().background)),
+                    text_color: theme.palette().text,
+                    ..Default::default()
+                }
+            })
+            .into()
+        }
+
+        modal_view(
+            container(
+                container(
+                    scrollable(
+                        match result.len() {
+                            0 => column!(text("No result")),
+                            _ => result
+                                .iter()
+                                .fold(
+                                    Column::new()
+                                        .spacing(10),
+                                    |column, item| column.push(result_item_view(item)),
+                                )
+                        }
+                        .width(600)
+                    )
+                )
+                .style(|theme| container::Style {
+                    background: Some(Background::Color(theme.palette().background)),
+                    border: Border {
+                        width: 1.0,
+                        color: theme.palette().primary,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+            )
+            .height(Length::Fill), // ISSUE: Invisible container length prevents the modal click detection
+
+            DashboardMessage::ClearSearchResult,
+
+            0.2
+        )
+        .into()
     }
 
     pub fn update(&mut self, message: DashboardMessage, screen: &mut AppScreen, theme: &mut AppTheme) -> Task<DashboardMessage> {
@@ -489,7 +609,7 @@ impl Dashboard {
             DashboardMessage::LoadDashboard(pool) => {
                 self.pool = Some(pool.clone());
 
-                let (navigator, navigator_task) = Navigator::new();
+                let (navigator, navigator_task) = Navigator::new(pool.clone());
                 self.navigator = Some(navigator);
 
                 let (group_navigator, group_navigator_task) = GroupNavigator::new(pool.clone());
@@ -586,11 +706,11 @@ impl Dashboard {
                 }
                 Task::none()
             },
-            DashboardMessage::CloseItemBox => {
+            DashboardMessage::CloseItemEditor => {
                 self.item_editor = None;
                 Task::none()
             },
-            DashboardMessage::SubmitItemBox => {
+            DashboardMessage::SubmitItemForm => {
                 let pool = match self.pool.clone() {
                     Some(pool) => pool,
                     None => return Task::none(),
@@ -612,19 +732,19 @@ impl Dashboard {
                     Dialog::NewGroup => {
                         Task::perform(
                             async move { create_group(pool, name, description.text()).await.map(|_| ()) },
-                            DashboardMessage::ItemBoxDone,
+                            DashboardMessage::ItemEditorDone,
                         )
                     },
                     Dialog::EditGroup => {
                         Task::perform(
                             async move { update_group(pool, id, name, description.text()).await },
-                            DashboardMessage::ItemBoxDone,
+                            DashboardMessage::ItemEditorDone,
                         )
                     },
                     Dialog::DeleteGroup => {
                         Task::perform(
                             async move { delete_group(pool, id).await },
-                            DashboardMessage::ItemBoxDone,
+                            DashboardMessage::ItemEditorDone,
                         )
                     },
                     Dialog::NewCommand => {
@@ -635,7 +755,7 @@ impl Dashboard {
                                     .await
                                     .map(|_| ())
                             },
-                            DashboardMessage::ItemBoxDone,
+                            DashboardMessage::ItemEditorDone,
                         )
                     },
                     Dialog::EditCommand => {
@@ -645,7 +765,7 @@ impl Dashboard {
                                     .await
                                     .map(|_| ())
                             },
-                            DashboardMessage::ItemBoxDone,
+                            DashboardMessage::ItemEditorDone,
                         )
                     },
                     Dialog::NewScript => {
@@ -656,7 +776,7 @@ impl Dashboard {
                                     .await
                                     .map(|_| ())
                             },
-                            DashboardMessage::ItemBoxDone,
+                            DashboardMessage::ItemEditorDone,
                         )
                     },
                     Dialog::EditScript => {
@@ -666,18 +786,18 @@ impl Dashboard {
                                     .await
                                     .map(|_| ())
                             },
-                            DashboardMessage::ItemBoxDone,
+                            DashboardMessage::ItemEditorDone,
                         )
                     },
                     Dialog::DeleteCommand | Dialog::DeleteScript => {
                         Task::perform(
                             async move { delete_item(pool, id).await },
-                            DashboardMessage::ItemBoxDone,
+                            DashboardMessage::ItemEditorDone,
                         )
                     },
                 }
             },
-            DashboardMessage::ItemBoxDone(result) => {
+            DashboardMessage::ItemEditorDone(result) => {
                 let editor = match &self.item_editor {
                     Some(editor) => editor,
                     None => return Task::none(),
@@ -687,12 +807,12 @@ impl Dashboard {
                     Ok(()) => {
                         match editor.dialog {
                             Dialog::NewGroup | Dialog::EditGroup | Dialog::DeleteGroup => {
-                                Task::done(DashboardMessage::CloseItemBox)
+                                Task::done(DashboardMessage::CloseItemEditor)
                                     .chain(Task::done(DashboardMessage::GroupNavigatorMessage(GroupNavigatorMessage::LoadGroupNavigator)))
                             },
                             Dialog::NewCommand | Dialog::EditCommand | Dialog::DeleteCommand
                             | Dialog::NewScript | Dialog::EditScript | Dialog::DeleteScript => {
-                                Task::done(DashboardMessage::CloseItemBox)
+                                Task::done(DashboardMessage::CloseItemEditor)
                                     .chain(Task::done(DashboardMessage::GroupMessage(GroupMessage::LoadGroup)))
                             },
                         }
@@ -700,8 +820,18 @@ impl Dashboard {
                     Err(e) => Task::done(DashboardMessage::SetItemEditorError(e)),
                 }
             },
+            DashboardMessage::ClearSearchResult => {
+                self.search_result = None;
+                Task::none()
+            },
+            DashboardMessage::ScrollToSearchResult(id, group_id) => {
+                Task::done(DashboardMessage::GroupNavigatorMessage(GroupNavigatorMessage::SetCurrentGroup(group_id)))
+                    // ISSUE: Highlight must run after loading the group
+                    .chain(Task::done(DashboardMessage::GroupMessage(GroupMessage::HighlightItem(id))))
+                    .chain(Task::done(DashboardMessage::ClearSearchResult))
+            },
             DashboardMessage::NavigatorMessage(navigator_m) => match &mut self.navigator {
-                Some(navigator) => navigator.update(navigator_m, screen, theme).map(|m| DashboardMessage::NavigatorMessage(m)),
+                Some(navigator) => navigator.update(navigator_m, screen, theme, &mut self.search_result).map(|m| DashboardMessage::NavigatorMessage(m)),
                 None => Task::none(),
             },
             DashboardMessage::GroupNavigatorMessage(group_navigator_m) => {

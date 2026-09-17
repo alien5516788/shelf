@@ -5,7 +5,7 @@ use iced::{Background, Color, Element};
  * Creates and overlay for dialog boxes notification
  * Closes when clicked on the mouse area
  */
-pub fn modal_view<'a, Message: Clone + 'a>(content: impl Into<Element<'a, Message>>, on_blur: Message) -> Element<'a, Message> {
+pub fn modal_view<'a, Message: Clone + 'a>(content: impl Into<Element<'a, Message>>, on_blur: Message, tp: f32) -> Element<'a, Message> {
     opaque(
         mouse_area(
             // TODO: Add back drop filter
@@ -13,9 +13,9 @@ pub fn modal_view<'a, Message: Clone + 'a>(content: impl Into<Element<'a, Messag
                 // Wrapping content in an another opaque to avoid mouse click propagation
                 opaque(content)
             )
-            .style(|_| {
+            .style(move |_| {
                 container::Style {
-                    background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.4))),
+                    background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, tp))),
                     ..Default::default()
                 }
             })

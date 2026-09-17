@@ -31,6 +31,8 @@ impl StatusMessage {
 pub fn status_bar_view<'a, Message: Clone + 'a>(status_message: &'a StatusMessage, on_clear: Message) -> Element<'a, Message> {
     let StatusMessage { message, status } = status_message;
 
+    let _ = status; // remove
+
     container(
         if let Some(message) = message {
             row![

@@ -44,6 +44,7 @@ pub struct ItemInfo {
     pub tags: Vec<String>,
 
     pub hovered: bool,
+    pub highlighted: bool,
     pub copied: bool,
     pub description_open: bool,
 }
@@ -65,6 +66,7 @@ pub enum GroupMessage {
     MakeItemFavourite(i32), // ISSUE: MakeItem, ToggleItem redundant
     ToggleItemFavourite(i32),
     UpdateItemUsed(i32),
+    HighlightItem(i32),
     ToggleItemHovered(i32),
     CopyItemContent(i32),
     ToggleItemContentCopied(i32),
@@ -302,13 +304,14 @@ impl Group {
 
                 // Item list
                 scrollable(
-                    center_x(self.item_list
-                        .iter()
-                        .fold(
-                            Column::new()
-                                .spacing(10),
-                            |column, item| column.push(Self::item_card_view(item)),
-                        )
+                    center_x(
+                        self.item_list
+                            .iter()
+                            .fold(
+                                Column::new()
+                                    .spacing(10),
+                                |column, item| column.push(Self::item_card_view(item)),
+                            )
                     )
                 )
             ]
@@ -329,7 +332,7 @@ impl Group {
     }
 
     fn item_card_view<'a>(item: &'a ItemInfo) -> Element<'a, GroupMessage> {
-        let (id, name, content, description, is_favourite, tags, hovered, copied, _description_collapsed) = (
+        let (id, name, content, description, is_favourite, tags, highlighted, hovered, copied, _description_collapsed) = (
             item.id,
             match &item.name {
                 Some(name) => name.as_str(),
@@ -339,6 +342,7 @@ impl Group {
             item.description.as_str(),
             item.is_favourite,
             item.tags.iter().collect::<Vec<_>>(),
+            item.highlighted,
             item.hovered,
             item.copied,
             item.description_open,
@@ -513,9 +517,12 @@ impl Group {
             .width(800)
             .height(Length::Shrink)
             .padding(12)
-            .style(|theme| container::Style {
+            .style(move |theme| container::Style {
                 border: Border {
-                    color: theme.palette().primary,
+                    color: match highlighted {
+                        true => theme.palette().warning,
+                        false => theme.palette().primary
+                    },
                     width: 1.0,
                     ..Default::default()
                 },
@@ -600,12 +607,24 @@ impl Group {
                     |_| GroupMessage::None, // TODO: Recent group count must be incremented
                 )
             },
+            GroupMessage::HighlightItem(id) => {
+                let item = match self.find_item(id) {
+                    Some(item) => item,
+                    None => {
+                        println!("No item");
+                        return Task::none()
+                    },
+                };
+                item.highlighted = true;
+                Task::none()
+            },
             GroupMessage::ToggleItemHovered(id) => {
                 let item = match self.find_item(id) {
                     Some(item) => item,
                     None => return Task::none(),
                 };
                 item.hovered = !item.hovered;
+                item.highlighted = false;
                 item.copied = false;
                 Task::none()
             },
@@ -740,6 +759,7 @@ impl Group {
             tags: tags,
 
             hovered: false,
+            highlighted: false,
             copied: false,
             description_open: false,
         })

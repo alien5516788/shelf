@@ -25,8 +25,8 @@ pub enum GroupNavigatorMessage {
     SetPool(Arc<SqlitePool>),
     LoadGroupNavigator,
     SetCurrentGroup(i32),
-    ReloadGroup,
     SetGroupList(Result<Vec<GroupRow>, String>),
+    ReloadGroup,
     ToggleOpen,
     ToggleGroupHovered(i32),
 
@@ -72,12 +72,15 @@ impl GroupNavigator {
                                     ..Default::default()
                                 }),
 
-                            text("Group")
-                                .size(sv_16())
-                                .style(|theme: &Theme| text::Style {
-                                    color: Some(theme.palette().success),
-                                    ..Default::default()
-                                }),
+                            text(match self.open {
+                                true => "Group",
+                                false => "",
+                            })
+                            .size(sv_16())
+                            .style(|theme: &Theme| text::Style {
+                                color: Some(theme.palette().success),
+                                ..Default::default()
+                            }),
                         ]
                         .align_y(Alignment::Center)
                         .spacing(10)
@@ -254,11 +257,6 @@ impl GroupNavigator {
                 *current_group = group.clone();
                 Task::done(GroupNavigatorMessage::ReloadGroup)
             },
-            GroupNavigatorMessage::ReloadGroup => {
-                // Intercepted by the dashbaord
-                // Group component must be ackknowledge of the reload content of the group
-                Task::none()
-            },
             GroupNavigatorMessage::SetGroupList(groups) => {
                 match groups {
                     Ok(groups) => self.group_list = Self::group_row_to_group_info(groups),
@@ -282,6 +280,11 @@ impl GroupNavigator {
                 }
 
                 Task::done(GroupNavigatorMessage::SetCurrentGroup(default_group_id))
+            },
+            GroupNavigatorMessage::ReloadGroup => {
+                // Intercepted by the dashbaord
+                // Group component must be ackknowledge of the reload content of the group
+                Task::none()
             },
             GroupNavigatorMessage::ToggleOpen =>{
                 self.open = !self.open;
