@@ -10,6 +10,7 @@ use sqlx::SqlitePool;
 use sqlx::types::chrono::NaiveDateTime;
 
 use crate::app::dashboard::Dialog;
+use crate::components::status_bar::{StatusMessage, StatusType};
 use crate::icon;
 use crate::services::item::{ItemRow, load_items_for_group, update_item_favourite, update_item_used};
 use crate::utils::font_size::{sv, sv_16, sv_20};
@@ -70,11 +71,14 @@ pub enum GroupMessage {
     ToggleItemHovered(i32),
     CopyItemContent(i32),
     ToggleItemContentCopied(i32),
+    RunCommand(String),
 
     OpenEditGroupBox(GroupInfo),
     OpenNewItemBox(ItemType),
     OpenEditItemBox(ItemInfo),
     OpenDeleteItemBox(ItemInfo),
+
+    SetStatusMessage(StatusMessage),
 
     None,
 }
@@ -456,6 +460,7 @@ impl Group {
                     column![
                         // Run
                         button(icon::play().size(sv(15.0)))
+                            .on_press(GroupMessage::RunCommand(content.to_string()))
                             .style(|theme, _| button::Style {
                                 text_color: theme.palette().success,
                                 ..Default::default()
@@ -468,7 +473,10 @@ impl Group {
                                 button(icon::star().size(sv_16()))
                                     .on_press(GroupMessage::MakeItemFavourite(id))
                                     .style(|theme, _| button::Style {
-                                        text_color: theme.palette().warning,
+                                        text_color: match theme.extended_palette().is_dark {
+                                            true => color!(0xF1FA8C),
+                                            false => color!(0xE77B00),
+                                        },
                                         ..Default::default()
                                     })
                             ),
@@ -534,7 +542,7 @@ impl Group {
         .into()
     }
 
-    pub fn update(&mut self, message: GroupMessage, current_group: &mut GroupInfo, item_editor: &mut Option<ItemEditor>) -> Task<GroupMessage> {
+    pub fn update(&mut self, message: GroupMessage, current_group: &mut GroupInfo, item_editor: &mut Option<ItemEditor>, status_message: &mut StatusMessage) -> Task<GroupMessage> {
         match message {
             GroupMessage::SetPool(pool) => {
                 self.pool = Some(pool);
@@ -647,6 +655,11 @@ impl Group {
                 item.copied = !item.copied;
                 Task::none()
             },
+            GroupMessage::RunCommand(_command) => {
+                Task::done(GroupMessage::SetStatusMessage(
+                    StatusMessage::new(Some(format!("Cannot run command (Feature not implemented)")), StatusType::Warn)
+                ))
+            }
             GroupMessage::OpenEditGroupBox(group) => {
                 *item_editor = Some(
                     ItemEditor {
@@ -733,6 +746,10 @@ impl Group {
                         }
                     ),
                 };
+                Task::none()
+            },
+            GroupMessage::SetStatusMessage(message) => {
+                *status_message = message;
                 Task::none()
             },
             GroupMessage::None => Task::none(),

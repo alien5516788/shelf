@@ -845,7 +845,7 @@ impl Dashboard {
                 }
             },
             DashboardMessage::GroupMessage(group_m) => match &mut self.group {
-                Some(group) => group.update(group_m, &mut self.current_group, &mut self.item_editor).map(|m| DashboardMessage::GroupMessage(m)),
+                Some(group) => group.update(group_m, &mut self.current_group, &mut self.item_editor, &mut self.status_message).map(|m| DashboardMessage::GroupMessage(m)),
                 None => Task::none(),
             },
         }
