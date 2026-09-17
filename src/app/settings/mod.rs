@@ -1,7 +1,8 @@
 use iced::widget::{button, center_x, column, container, row, scrollable, space, text, toggler};
 use iced::{Alignment, Border, Element, Length, Task, Theme};
 
-use crate::components::status_bar::{StatusMessage, status_bar_view};
+use crate::components::status_bar::{StatusMessage, StatusType, status_bar_view};
+use crate::data::ensure_data_dir;
 use crate::data::settings::{AppScreen, AppTheme, RunMode, SettingsInfo, ShellKind, TerminalKind, TextSize, get_settings, load_settings, set_settings};
 use crate::utils::font_size::sv;
 use crate::utils::logger::log_error;
@@ -178,8 +179,6 @@ impl Settings {
                             "Shell",
                             row![
                                 choice("Bash", self.setting_list.shell == ShellKind::Bash, SettingsMessage::SetShell(ShellKind::Bash)),
-                                choice("Fish", self.setting_list.shell == ShellKind::Fish, SettingsMessage::SetShell(ShellKind::Fish)),
-                                choice("PowerShell", self.setting_list.shell == ShellKind::PowerShell, SettingsMessage::SetShell(ShellKind::PowerShell))
                             ]
                             .spacing(8)
                             .into(),
@@ -191,6 +190,7 @@ impl Settings {
                                 choice("Gnome", self.setting_list.terminal == TerminalKind::Gnome, SettingsMessage::SetTerminal(TerminalKind::Gnome)),
                                 choice("Konsole", self.setting_list.terminal == TerminalKind::Konsole, SettingsMessage::SetTerminal(TerminalKind::Konsole)),
                                 choice("Kitty", self.setting_list.terminal == TerminalKind::Kitty, SettingsMessage::SetTerminal(TerminalKind::Kitty)),
+                                choice("Xterm", self.setting_list.terminal == TerminalKind::Xterm, SettingsMessage::SetTerminal(TerminalKind::Xterm)),
                             ]
                             .spacing(8)
                             .into(),
@@ -256,7 +256,13 @@ impl Settings {
                             *theme = settings.theme.clone();
                             *screen = settings.screen.clone();
                             self.setting_list = settings;
-                            self.data_dir = "Some/dir".to_string();
+                            self.data_dir = match ensure_data_dir() {
+                                Ok(path) => path.to_string_lossy().into_owned(),
+                                Err(e) => {
+                                    log_error(&e);
+                                    String::new()
+                                }
+                            };
                             self.version = "Version 0.1.0".to_string();
                             Task::none()
                         },
@@ -280,8 +286,17 @@ impl Settings {
                 Task::none()
             },
             SettingsMessage::OpenDataDir => {
-                // TODO: Open data directory
-                Task::none()
+                let handle = std::process::Command::new("xdg-open") // ISSUE: Implement executor
+                    .arg(&self.data_dir)
+                    .spawn();
+
+                match handle {
+                    Ok(_) => Task::none(),
+                    Err(e) => {
+                        log_error(&e.to_string());
+                        Task::done(SettingsMessage::SetStatusMessage(StatusMessage::new(Some(e.to_string()), StatusType::Error)))
+                    }
+                }
             },
             SettingsMessage::SetStatusMessage(m) => {
                 self.status_message = m;

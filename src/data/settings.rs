@@ -39,10 +39,6 @@ pub enum TextSize {
 pub enum ShellKind {
     #[default]
     Bash,
-    Csh,
-    Fish,
-    Cmd,
-    PowerShell,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -163,6 +159,6 @@ pub fn set_settings(f: impl FnOnce(&mut SettingsInfo)) -> Result<(), String> {
     let mut guard = cache().lock().map_err(|e| e.to_string())?;
     f(&mut guard);
 
-    log_debug("Writing settings");
+    log_info("Saving settings");
     write_settings(&guard)
 }
