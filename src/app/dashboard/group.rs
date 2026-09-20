@@ -670,7 +670,7 @@ impl Group {
                     Some(item) => item,
                     None => return Task::none(),
                 };
-                item.copied = !item.copied;
+                item.copied = true;
                 Task::none()
             },
             GroupMessage::RunCommand(_command) => {
