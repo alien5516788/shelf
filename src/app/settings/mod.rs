@@ -4,6 +4,7 @@ use iced::{Alignment, Border, Element, Length, Task, Theme};
 use crate::components::status_bar::{StatusMessage, StatusType, status_bar_view};
 use crate::data::ensure_data_dir;
 use crate::data::settings::{AppScreen, AppTheme, RunMode, SettingsInfo, ShellKind, TerminalKind, TextSize, get_settings, load_settings, set_settings};
+use crate::icon;
 use crate::utils::font_size::sv;
 use crate::utils::logger::log_error;
 
@@ -50,46 +51,81 @@ impl Settings {
     }
 
     pub fn view(&self) -> Element<'_, SettingsMessage> {
-        column![
-            // Settings
-            container(
-                center_x(
-                    column![
+        container(
+            column![
+                // Navigator
+                container(
+                    row![
+                        // Back button
+                        button(icon::chevron_left().size(sv(20.0)))
+                            .padding(2.5)
+                            .style(|theme: &Theme, _| {
+                                button::Style {
+                                    text_color: theme.palette().text,
+                                    ..Default::default()
+                                }
+                            })
+                            .on_press(SettingsMessage::SetScreen(AppScreen::Dashboard)),
+
                         // Title
-                        row![
-                            button(text("Back to Dashboard").size(sv(20.0)))
-                                .on_press(SettingsMessage::SetScreen(AppScreen::Dashboard)),
-                            text("Settings").size(sv(28.0))
-                        ]
-                        .padding(10),
+                        text("Settings")
+                            .size(sv(18.0))
+                            .style(|theme: &Theme| {
+                                text::Style {
+                                    color: Some(theme.palette().text),
+                                    ..Default::default()
+                                }
+                            }),
+                    ]
+                    .padding(10)
+                    .spacing(20)
+                    .align_y(Alignment::Center),
+                )
+                .padding([0, 20])
+                .style(|theme: &Theme| container::Style {
+                    border: Border {
+                        color: theme.palette().primary,
+                        width: 0.5,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+                .width(Length::Fill),
 
-                        space()
-                            .height(12),
-
-                        // Controls
+                // Settings
+                container(
+                    center_x(
                         scrollable(
                             self.setting_list_view()
                         )
-                    ]
+                    )
                 )
-            )
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(|theme: &Theme| container::Style {
-                border: Border {
-                    color: theme.palette().primary,
-                    width: 1.0,
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|theme: &Theme| container::Style {
+                    border: Border {
+                        color: theme.palette().primary,
+                        width: 0.5,
+                        ..Default::default()
+                    },
                     ..Default::default()
-                },
-                ..Default::default()
-            }),
+                }),
 
-            // Status bar
-            status_bar_view(
-                &self.status_message,
-                SettingsMessage::SetStatusMessage(StatusMessage::default()),
-            ),
-        ]
+                // Status bar
+                status_bar_view(
+                    &self.status_message,
+                    SettingsMessage::SetStatusMessage(StatusMessage::default()),
+                ),
+            ]
+        )
+        .style(|theme: &Theme| container::Style {
+            border: Border {
+                color: theme.palette().primary,
+                width: 0.5,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
         .into()
     }
 

@@ -119,44 +119,76 @@ impl Group {
 
                 // Group controls and filters
                 row![
-                    // Command filter
-                    button(icon::square_terminal().size(sv_20()))
-                    .on_press(GroupMessage::SetFilter(Filter {
-                        command: !self.filter.command,
-                        ..self.filter
-                    }))
-                    .style(|theme, _| button::Style {
-                        background: None,
-                        text_color: theme.palette().primary,
-                        ..Default::default()
-                    }),
+                    // Filters
+                    // ISSUE: Filters are ugly as sh*t (No difference than rest of the app though
+                    row![
+                        // Command filter
+                        button(icon::terminal().size(sv_16()))
+                        .padding([0, 3])
+                        .on_press(GroupMessage::SetFilter(Filter {
+                            command: !self.filter.command,
+                            ..self.filter
+                        }))
+                        .style(|theme, _| button::Style {
+                            background: None,
+                            text_color: theme.palette().primary,
+                            border: match self.filter.command {
+                                true => Border {
+                                    width: 2.0,
+                                    color: theme.palette().primary.scale_alpha(0.5),
+                                    radius: 4.into(),
+                                },
+                                false => Border::default(),
+                            },
+                            ..Default::default()
+                        }),
 
-                    // Script filter
-                    button(icon::code_xml().size(sv_20()))
-                    .on_press(GroupMessage::SetFilter(Filter {
-                        script: !self.filter.script,
-                        ..self.filter
-                    }))
-                    .style(|theme, _| button::Style {
-                        background: None,
-                        text_color: theme.palette().primary,
-                        ..Default::default()
-                    }),
+                        // Script filter
+                        button(icon::code_xml().size(sv_16()))
+                        .padding([0, 3])
+                        .on_press(GroupMessage::SetFilter(Filter {
+                            script: !self.filter.script,
+                            ..self.filter
+                        }))
+                        .style(|theme, _| button::Style {
+                            background: None,
+                            text_color: theme.palette().primary,
+                            border: match self.filter.script {
+                                true => Border {
+                                    width: 2.0,
+                                    color: theme.palette().primary.scale_alpha(0.5),
+                                    radius: 4.into(),
+                                },
+                                false => Border::default(),
+                            },
+                            ..Default::default()
+                        }),
 
-                    // Alphabetical filter
-                    button(
-                        icon::a_large_small()
-                            .size(sv_20())
-                    )
-                    .on_press(GroupMessage::SetFilter(Filter {
-                        alphabetical: !self.filter.alphabetical,
-                        ..self.filter
-                    }))
-                    .style(|theme, _| button::Style {
-                        background: None,
-                        text_color: theme.palette().primary,
-                        ..Default::default()
-                    }),
+                        // Alphabetical filter
+                        button(
+                            icon::a_large_small()
+                                .size(sv_16())
+                        )
+                        .padding([0, 3])
+                        .on_press(GroupMessage::SetFilter(Filter {
+                            alphabetical: !self.filter.alphabetical,
+                            ..self.filter
+                        }))
+                        .style(|theme, _| button::Style {
+                            background: None,
+                            text_color: theme.palette().primary,
+                            border: match self.filter.alphabetical {
+                                true => Border {
+                                    width: 2.0,
+                                    color: theme.palette().primary.scale_alpha(0.5),
+                                    radius: 4.into(),
+                                },
+                                false => Border::default(),
+                            },
+                            ..Default::default()
+                        })
+                    ]
+                    .spacing(15),
 
                     space()
                         .width(Length::Fill),
@@ -355,7 +387,7 @@ impl Group {
         let icon = match copied {
             true => icon::copy(),
             false => match item.item_type {
-                ItemType::Command => icon::square_terminal(),
+                ItemType::Command => icon::terminal(),
                 ItemType::Script => icon::code_xml(),
             },
         };

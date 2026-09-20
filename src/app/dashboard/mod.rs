@@ -513,7 +513,7 @@ impl Dashboard {
                 item.id,
                 item.name.as_str(),
                 match item.item_type.as_str() {
-                    "command" => icon::square_terminal(),
+                    "command" => icon::terminal(),
                     _ => icon::code_xml(),
                 },
                 item.group_id,

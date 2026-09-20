@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use iced::{Alignment, Background, Border, Element, Length, Padding, Task, Theme, color};
+use iced::{Alignment, Background, Border, Element, Length, Task, Theme, color};
 use iced::widget::{button, center_x, container, row, space, text, text_input};
 use sqlx::SqlitePool;
 
@@ -150,12 +150,7 @@ impl Navigator {
             .align_y(Alignment::Center)
             .spacing(20)
         )
-        .padding(Padding {
-            top: 5.0,
-            right: 20.0,
-            bottom: 5.0,
-            left: 20.0
-        })
+        .padding([5, 20])
         .style(|theme| container::Style {
             border: Border {
                 color: theme.palette().primary,

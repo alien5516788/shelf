@@ -51,12 +51,24 @@ impl GroupNavigator {
         container(
             column![
                 // Collapse side bar
-                button(icon::menu().size(sv(20.0)))
+                row![
+                    match self.open {
+                        true => space().width(Length::Fill),
+                        false => space(),
+                    },
+
+                    button(match self.open {
+                        true => icon::panel_left_close().size(sv(20.0)),
+                        false => icon::panel_left_open().size(sv(20.0)),
+                    })
+                    .on_press(GroupNavigatorMessage::ToggleOpen)
+                    .padding([0, 8])
                     .style(|theme, _| button::Style {
                         text_color: theme.palette().primary,
                         ..Default::default()
                     })
-                    .on_press(GroupNavigatorMessage::ToggleOpen),
+                ],
+
 
                 space()
                     .height(10.0),
