@@ -23,7 +23,7 @@ pub struct Group {
     filter: Filter,
     item_list: Vec<ItemInfo>,
 
-    pool: Option<Arc<SqlitePool>>,
+    pool: Arc<SqlitePool>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,7 +59,6 @@ pub enum ItemType {
 
 #[derive(Debug, Clone)]
 pub enum GroupMessage {
-    SetPool(Arc<SqlitePool>),
     LoadGroup,
     SetItemList(Result<Vec<(ItemRow, Vec<String>)>, String>),
     ToggleDescriptionOpen,
@@ -95,10 +94,10 @@ impl Group {
                 },
                 item_list: Vec::new(),
 
-                pool: None,
+                pool: pool,
             },
 
-            Task::done(GroupMessage::SetPool(pool)),
+            Task::done(GroupMessage::LoadGroup),
         )
     }
 
@@ -576,17 +575,10 @@ impl Group {
 
     pub fn update(&mut self, message: GroupMessage, current_group: &mut GroupInfo, item_editor: &mut Option<ItemEditor>, status_message: &mut StatusMessage) -> Task<GroupMessage> {
         match message {
-            GroupMessage::SetPool(pool) => {
-                self.pool = Some(pool);
-                Task::done(GroupMessage::LoadGroup)
-            },
             GroupMessage::LoadGroup => {
-                let pool = match self.pool.clone() {
-                    Some(pool) => pool,
-                    None => return Task::none(),
-                };
+                let pool = self.pool.clone();
                 Task::perform(
-                    load_items_for_group(pool.clone(), current_group.id, self.filter.command, self.filter.script),
+                    load_items_for_group(pool, current_group.id, self.filter.command, self.filter.script),
                     GroupMessage::SetItemList
                 )
             },
@@ -613,10 +605,7 @@ impl Group {
                 Task::done(GroupMessage::LoadGroup)
             },
             GroupMessage::MakeItemFavourite(id) => {
-                let pool = match self.pool.clone() {
-                    Some(pool) => pool,
-                    None => return Task::none(),
-                };
+                let pool = self.pool.clone();
                 let item = match self.find_item(id) {
                     Some(item) => item,
                     None => return Task::none(),
@@ -638,10 +627,7 @@ impl Group {
                 Task::none()
             },
             GroupMessage::UpdateItemUsed(id) => {
-                let pool = match self.pool.clone() {
-                    Some(pool) => pool,
-                    None => return Task::none(),
-                };
+                let pool = self.pool.clone();
                 Task::perform(
                     update_item_used(pool, id),
                     |_| GroupMessage::None, // TODO: Recent group count must be incremented

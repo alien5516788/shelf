@@ -36,7 +36,7 @@ pub struct Dashboard {
     pub group_navigator: Option<GroupNavigator>,
     pub group: Option<Group>,
 
-    pub pool: Option<Arc<SqlitePool>>
+    pub pool: Arc<SqlitePool>
 }
 
 #[derive(Debug, Clone, Default)]
@@ -79,7 +79,7 @@ pub enum Dialog {
 
 #[derive(Debug, Clone)]
 pub enum DashboardMessage {
-    LoadDashboard(Arc<SqlitePool>),
+    LoadDashboard,
     SetStatusMessage(StatusMessage),
 
     SetItemEditorName(String),
@@ -114,10 +114,10 @@ impl Dashboard {
                 navigator: None,
                 group_navigator: None,
                 group: None,
-                pool: None,
+                pool: pool,
             },
 
-            Task::done(DashboardMessage::LoadDashboard(pool)),
+            Task::done(DashboardMessage::LoadDashboard),
         )
     }
 
@@ -606,16 +606,14 @@ impl Dashboard {
 
     pub fn update(&mut self, message: DashboardMessage, screen: &mut AppScreen, theme: &mut AppTheme) -> Task<DashboardMessage> {
         match message {
-            DashboardMessage::LoadDashboard(pool) => {
-                self.pool = Some(pool.clone());
-
-                let (navigator, navigator_task) = Navigator::new(pool.clone());
+            DashboardMessage::LoadDashboard => {
+                let (navigator, navigator_task) = Navigator::new(self.pool.clone());
                 self.navigator = Some(navigator);
 
-                let (group_navigator, group_navigator_task) = GroupNavigator::new(pool.clone());
+                let (group_navigator, group_navigator_task) = GroupNavigator::new(self.pool.clone());
                 self.group_navigator = Some(group_navigator);
 
-                let (group, group_task) = Group::new(pool);
+                let (group, group_task) = Group::new(self.pool.clone());
                 self.group = Some(group);
 
                 Task::batch([
@@ -711,10 +709,6 @@ impl Dashboard {
                 Task::none()
             },
             DashboardMessage::SubmitItemForm => {
-                let pool = match self.pool.clone() {
-                    Some(pool) => pool,
-                    None => return Task::none(),
-                };
                 let editor = match &self.item_editor {
                     Some(editor) => editor,
                     None => return Task::none(),
@@ -730,24 +724,28 @@ impl Dashboard {
 
                 match dialog {
                     Dialog::NewGroup => {
+                        let pool = self.pool.clone();
                         Task::perform(
                             async move { create_group(pool, name, description.text()).await.map(|_| ()) },
                             DashboardMessage::ItemEditorDone,
                         )
                     },
                     Dialog::EditGroup => {
+                        let pool = self.pool.clone();
                         Task::perform(
                             async move { update_group(pool, id, name, description.text()).await },
                             DashboardMessage::ItemEditorDone,
                         )
                     },
                     Dialog::DeleteGroup => {
+                        let pool = self.pool.clone();
                         Task::perform(
                             async move { delete_group(pool, id).await },
                             DashboardMessage::ItemEditorDone,
                         )
                     },
                     Dialog::NewCommand => {
+                        let pool = self.pool.clone();
                         let group_id = self.current_group.id;
                         Task::perform(
                             async move {
@@ -759,6 +757,7 @@ impl Dashboard {
                         )
                     },
                     Dialog::EditCommand => {
+                        let pool = self.pool.clone();
                         Task::perform(
                             async move {
                                 update_item(pool, id, "command", None, content.text(), description.text(), tags)
@@ -769,6 +768,7 @@ impl Dashboard {
                         )
                     },
                     Dialog::NewScript => {
+                        let pool = self.pool.clone();
                         let group_id = self.current_group.id;
                         Task::perform(
                             async move {
@@ -780,6 +780,7 @@ impl Dashboard {
                         )
                     },
                     Dialog::EditScript => {
+                        let pool = self.pool.clone();
                         Task::perform(
                             async move {
                                 update_item(pool, id, "script", Some(name), content.text(), description.text(), tags)
@@ -790,6 +791,7 @@ impl Dashboard {
                         )
                     },
                     Dialog::DeleteCommand | Dialog::DeleteScript => {
+                        let pool = self.pool.clone();
                         Task::perform(
                             async move { delete_item(pool, id).await },
                             DashboardMessage::ItemEditorDone,

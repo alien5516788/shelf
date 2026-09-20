@@ -17,12 +17,11 @@ pub struct GroupNavigator {
     pub open: bool,
     pub group_list: Vec<GroupInfo>,
 
-    pub pool: Option<Arc<SqlitePool>>,
+    pub pool: Arc<SqlitePool>,
 }
 
 #[derive(Debug, Clone)]
 pub enum GroupNavigatorMessage {
-    SetPool(Arc<SqlitePool>),
     LoadGroupNavigator,
     SetCurrentGroup(i32),
     SetGroupList(Result<Vec<GroupRow>, String>),
@@ -40,10 +39,10 @@ impl GroupNavigator {
             Self {
                 open: true,
                 group_list: Vec::new(),
-                pool: None,
+                pool: pool,
             },
 
-            Task::done(GroupNavigatorMessage::SetPool(pool))
+            Task::done(GroupNavigatorMessage::LoadGroupNavigator)
         )
     }
 
@@ -246,16 +245,8 @@ impl GroupNavigator {
 
     pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo, item_editor: &mut Option<ItemEditor>) -> Task<GroupNavigatorMessage> {
         match message {
-            GroupNavigatorMessage::SetPool(pool) => {
-                self.pool = Some(pool.clone());
-                Task::done(GroupNavigatorMessage::LoadGroupNavigator)
-            },
             GroupNavigatorMessage::LoadGroupNavigator => {
-                let pool = match self.pool.clone() {
-                    Some(pool) => pool,
-                    None => return Task::none(),
-                };
-
+                let pool = self.pool.clone();
                 Task::perform(
                     load_groups(pool.clone()),
                     GroupNavigatorMessage::SetGroupList

@@ -14,7 +14,7 @@ use crate::utils::formatting::clamp_name;
 pub struct Navigator {
     pub search_query: String,
 
-    pub pool: Option<Arc<SqlitePool>>,
+    pub pool: Arc<SqlitePool>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,7 +28,6 @@ pub struct SearchInfo {
 
 #[derive(Debug, Clone)]
 pub enum NavigatorMessage {
-    SetPool(Arc<SqlitePool>),
     SetScreen(AppScreen),
     ToggleTheme,
     SetSearchQuery(Option<String>),
@@ -41,10 +40,10 @@ impl Navigator {
         (
             Self {
                 search_query: String::new(),
-                pool: None,
+                pool: pool,
             },
 
-            Task::done(NavigatorMessage::SetPool(pool))
+            Task::none()
         )
     }
 
@@ -165,10 +164,6 @@ impl Navigator {
 
     pub fn update(&mut self, message: NavigatorMessage, screen: &mut AppScreen, theme: &mut AppTheme, search_result: &mut Option<Vec<SearchInfo>>) -> Task<NavigatorMessage> {
         match message {
-            NavigatorMessage::SetPool(pool) => {
-                self.pool = Some(pool);
-                Task::none()
-            },
             NavigatorMessage::SetScreen(scrn) => {
                 *screen = scrn;
                 Task::none()
@@ -194,15 +189,13 @@ impl Navigator {
                 Task::none()
             },
             NavigatorMessage::SearchQuery => {
+                let pool = self.pool.clone();
                 match self.search_query.as_str() {
                     "" => Task::none(),
-                    _ => match self.pool.clone() {
-                        Some(pool) => Task::perform(
-                            search_items(pool, self.search_query.clone(), 50),
-                            |result| NavigatorMessage::SetSearchResult(result)
-                        ),
-                        None => Task::none(),
-                    }
+                    _ => Task::perform(
+                        search_items(pool, self.search_query.clone(), 50),
+                        |result| NavigatorMessage::SetSearchResult(result)
+                    )
                 }
             },
             NavigatorMessage::SetSearchResult(result) => {
