@@ -1,53 +1,14 @@
-use std::sync::Arc;
-
-use iced::{Alignment, Background, Border, Element, Length, Task, Theme, color};
+use iced::{Alignment, Background, Border, Element, Length, Theme, color};
 use iced::widget::{button, center_x, container, row, space, text, text_input};
-use sqlx::SqlitePool;
 
+use super::{Dashboard, DashboardMessage};
 use crate::data::settings::{AppScreen, AppTheme};
 use crate::icon;
-use crate::services::search::{SearchRow, search_items};
 use crate::utils::font_size::{sv, sv_16, sv_20};
-use crate::utils::formatting::clamp_name;
 
-#[derive(Debug, Clone)]
-pub struct Navigator {
-    pub search_query: String,
 
-    pub pool: Arc<SqlitePool>,
-}
-
-#[derive(Debug, Clone)]
-pub struct SearchInfo {
-    pub id: i32,
-    pub name: String,
-    pub item_type: String,
-    pub group_id: i32,
-    pub group_name: String,
-}
-
-#[derive(Debug, Clone)]
-pub enum NavigatorMessage {
-    SetScreen(AppScreen),
-    ToggleTheme,
-    SetSearchQuery(Option<String>),
-    SearchQuery,
-    SetSearchResult(Result<Vec<SearchRow>, String>),
-}
-
-impl Navigator {
-    pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<NavigatorMessage>) {
-        (
-            Self {
-                search_query: String::new(),
-                pool: pool,
-            },
-
-            Task::none()
-        )
-    }
-
-    pub fn view(&self, title: String, theme: &AppTheme) -> Element<'_, NavigatorMessage> {
+impl Dashboard {
+    pub fn navigator_view(&self, title: &'static str, theme: &AppTheme) -> Element<'_, DashboardMessage> {
         container(
             row![
                 // App name
@@ -63,7 +24,7 @@ impl Navigator {
                         }
                 )
                 .padding([0, 15])
-                .on_press(NavigatorMessage::SetScreen(AppScreen::Home)),
+                .on_press(DashboardMessage::SetScreen(AppScreen::Home)),
 
                 // Search bar
                 center_x(
@@ -71,7 +32,7 @@ impl Navigator {
                         row![
                             // Search button
                             button(icon::search().size(sv(15.0)))
-                                .on_press(NavigatorMessage::SearchQuery)
+                                .on_press(DashboardMessage::Search)
                                 .style(|theme, _| button::Style {
                                     text_color: theme.palette().primary,
                                     ..Default::default()
@@ -79,7 +40,7 @@ impl Navigator {
 
                             // Input
                             text_input("Search", &self.search_query)
-                                .on_input(|query| NavigatorMessage::SetSearchQuery(Some(query)))
+                                .on_input(|query| DashboardMessage::SetSearchQuery(Some(query)))
                                 .size(sv_16())
                                 .style(|theme: &Theme, _| text_input::Style {
                                     background: Background::Color(theme.palette().background).scale_alpha(0.0),
@@ -96,7 +57,7 @@ impl Navigator {
                             match self.search_query.as_str() {
                                 "" => container(space()),
                                 _ => container(button(icon::x().size(sv(15.0)))
-                                    .on_press(NavigatorMessage::SetSearchQuery(None))
+                                    .on_press(DashboardMessage::SetSearchQuery(None))
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().primary,
                                         ..Default::default()
@@ -128,7 +89,7 @@ impl Navigator {
                             text_color: theme.palette().primary,
                             ..Default::default()
                         })
-                        .on_press(NavigatorMessage::SetScreen(AppScreen::Settings)),
+                        .on_press(DashboardMessage::SetScreen(AppScreen::Settings)),
 
                     // Switch theme
                     button(match theme {
@@ -142,7 +103,7 @@ impl Navigator {
                     .style(|_, _| button::Style {
                         ..Default::default()
                     })
-                    .on_press(NavigatorMessage::ToggleTheme),
+                    .on_press(DashboardMessage::SetTheme),
                 ]
                 .spacing(10),
             ]
@@ -160,68 +121,5 @@ impl Navigator {
         })
         .width(Length::Fill)
         .into()
-    }
-
-    pub fn update(&mut self, message: NavigatorMessage, screen: &mut AppScreen, theme: &mut AppTheme, search_result: &mut Option<Vec<SearchInfo>>) -> Task<NavigatorMessage> {
-        match message {
-            NavigatorMessage::SetScreen(scrn) => {
-                *screen = scrn;
-                Task::none()
-            },
-            NavigatorMessage::ToggleTheme => match theme {
-                AppTheme::Light => {
-                    *theme = AppTheme::Dark;
-                    Task::none()
-                },
-                AppTheme::Dark => {
-                    *theme = AppTheme::Light;
-                    Task::none()
-                },
-            },
-            NavigatorMessage::SetSearchQuery(query) => {
-                match query {
-                    Some(query) => self.search_query = query,
-                    None => {
-                        self.search_query.clear();
-                        *search_result = None;
-                    }
-                }
-                Task::none()
-            },
-            NavigatorMessage::SearchQuery => {
-                let pool = self.pool.clone();
-                match self.search_query.as_str() {
-                    "" => Task::none(),
-                    _ => Task::perform(
-                        search_items(pool, self.search_query.clone(), 50),
-                        |result| NavigatorMessage::SetSearchResult(result)
-                    )
-                }
-            },
-            NavigatorMessage::SetSearchResult(result) => {
-                match result {
-                    Ok(result) => *search_result = Some(Self::search_row_to_search_info(result)),
-                    Err(_) => (),
-                }
-                Task::none()
-            }
-        }
-    }
-
-    fn search_row_to_search_info(result: Vec<SearchRow>) -> Vec<SearchInfo> {
-        result.into_iter().map(|item| SearchInfo {
-            id: item.id,
-            name: match item.item_type.as_str() {
-                "command" => clamp_name(&item.content, 30),
-                _ => match item.name {
-                    Some(name) => clamp_name(&name, 30),
-                    None => "Unknown".to_string(),
-                }
-            },
-            item_type: item.item_type,
-            group_id: item.group_id,
-            group_name: clamp_name(&item.group_name, 20)
-        })
-        .collect()
     }
 }

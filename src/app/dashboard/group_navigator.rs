@@ -1,66 +1,29 @@
-use std::sync::Arc;
-
-use iced::widget::text_editor::Content;
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Task, Theme};
+use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Theme};
 use iced::widget::{Column, button, center_x, column, container, mouse_area, row, scrollable, space, text};
-use sqlx::SqlitePool;
 
+use super::GroupInfo;
+use crate::app::dashboard::{Dashboard, DashboardMessage};
 use crate::icon;
-use crate::services::group::{GroupRow, load_groups};
 use crate::utils::font_size::{sv, sv_16, sv_20};
 use crate::utils::formatting::clamp_name;
-use super::{GroupInfo, ItemEditor, Dialog};
 
 
-#[derive(Debug, Clone)]
-pub struct GroupNavigator {
-    pub open: bool,
-    pub group_list: Vec<GroupInfo>,
-
-    pub pool: Arc<SqlitePool>,
-}
-
-#[derive(Debug, Clone)]
-pub enum GroupNavigatorMessage {
-    LoadGroupNavigator,
-    SetCurrentGroup(i32),
-    SetGroupList(Result<Vec<GroupRow>, String>),
-    ReloadGroup,
-    ToggleOpen,
-    ToggleGroupHovered(i32),
-
-    OpenNewGroupBox,
-    OpenDeleteGroupBox(GroupInfo),
-}
-
-impl GroupNavigator {
-    pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<GroupNavigatorMessage>) {
-        (
-            Self {
-                open: true,
-                group_list: Vec::new(),
-                pool: pool,
-            },
-
-            Task::done(GroupNavigatorMessage::LoadGroupNavigator)
-        )
-    }
-
-    pub fn view(&self, current_group: &GroupInfo) -> Element<'_, GroupNavigatorMessage> {
+impl Dashboard {
+    pub fn group_navigator_view(&self) -> Element<'_, DashboardMessage> {
         container(
             column![
                 // Collapse side bar
                 row![
-                    match self.open {
+                    match self.group_navigator_open {
                         true => space().width(Length::Fill),
                         false => space(),
                     },
 
-                    button(match self.open {
+                    button(match self.group_navigator_open {
                         true => icon::panel_left_close().size(sv(20.0)),
                         false => icon::panel_left_open().size(sv(20.0)),
                     })
-                    .on_press(GroupNavigatorMessage::ToggleOpen)
+                    .on_press(DashboardMessage::SetGroupNavigatoOpen)
                     .padding([0, 8])
                     .style(|theme, _| button::Style {
                         text_color: theme.palette().primary,
@@ -83,7 +46,7 @@ impl GroupNavigator {
                                     ..Default::default()
                                 }),
 
-                            text(match self.open {
+                            text(match self.group_navigator_open {
                                 true => "Group",
                                 false => "",
                             })
@@ -97,7 +60,7 @@ impl GroupNavigator {
                         .spacing(10)
                     )
                 )
-                .on_press(GroupNavigatorMessage::OpenNewGroupBox)
+                .on_press(DashboardMessage::OpenNewGroupBox)
                 .style(|theme: &Theme, _| button::Style {
                     border: Border {
                         color: theme.palette().success,
@@ -116,14 +79,14 @@ impl GroupNavigator {
                         self.group_list.iter().fold(
                             Column::new()
                                 .spacing(10),
-                            |column, group| column.push(Self::group_card_view(group, group.id == current_group.id, &self.open)),
+                            |column, group| column.push(Self::group_card_view(group, group.id == self.group_selected.id, &self.group_navigator_open)),
                         )
                     )
                 )
             ]
         )
         .height(Length::Fill)
-        .width(match self.open {
+        .width(match self.group_navigator_open {
             true => sv(250.0) as u32,
             false => 70,
         })
@@ -139,7 +102,7 @@ impl GroupNavigator {
         .into()
     }
 
-    fn group_card_view(group: &GroupInfo, selected: bool, open: &bool) -> Element<'static, GroupNavigatorMessage> {
+    fn group_card_view(group: &GroupInfo, selected: bool, open: &bool) -> Element<'static, DashboardMessage> {
         let (id, name, item_count, hovered) = (
             group.id,
             group.name.as_str(),
@@ -189,7 +152,7 @@ impl GroupNavigator {
                                             icon::trash()
                                                 .size(sv(14.0))
                                         )
-                                        .on_press(GroupNavigatorMessage::OpenDeleteGroupBox(group.clone()))
+                                        .on_press(DashboardMessage::OpenDeleteGroupBox(group.clone()))
                                         .padding(0)
                                         .style(|theme, _| button::Style {
                                             text_color: theme.palette().danger,
@@ -222,7 +185,7 @@ impl GroupNavigator {
                 .width(Length::Fill)
                 .align_x(Alignment::Center)
             )
-            .on_press(GroupNavigatorMessage::SetCurrentGroup(id))
+            .on_press(DashboardMessage::SetGroupSelected(group.clone()))
             .width(Length::Fill)
             .padding(8)
             .style(move |theme, status| button::Style {
@@ -238,109 +201,8 @@ impl GroupNavigator {
                 ..Default::default()
             })
         )
-        .on_enter(GroupNavigatorMessage::ToggleGroupHovered(id))
-        .on_exit(GroupNavigatorMessage::ToggleGroupHovered(id))
+        .on_enter(DashboardMessage::SetGroupHovered(id))
+        .on_exit(DashboardMessage::SetGroupHovered(id))
         .into()
-    }
-
-    pub fn update(&mut self, message: GroupNavigatorMessage, current_group: &mut GroupInfo, item_editor: &mut Option<ItemEditor>) -> Task<GroupNavigatorMessage> {
-        match message {
-            GroupNavigatorMessage::LoadGroupNavigator => {
-                let pool = self.pool.clone();
-                Task::perform(
-                    load_groups(pool.clone()),
-                    GroupNavigatorMessage::SetGroupList
-                )
-            },
-            GroupNavigatorMessage::SetCurrentGroup(id) => {
-                let group = match self.find_group(id) {
-                    Some(group) => group,
-                    None => return Task::none(),
-                };
-                *current_group = group.clone();
-                Task::done(GroupNavigatorMessage::ReloadGroup)
-            },
-            GroupNavigatorMessage::SetGroupList(groups) => {
-                match groups {
-                    Ok(groups) => self.group_list = Self::group_row_to_group_info(groups),
-                    Err(e) => {
-                        eprintln!("Failed to load groups: {}", e);
-                        self.group_list = Vec::new()
-                    },
-                }
-
-                // Set current group
-                let mut default_group_id = 0;
-
-                for group in &self.group_list {
-                    if group.id == current_group.id {
-                        // Current group found, return it
-                        return Task::done(GroupNavigatorMessage::SetCurrentGroup(group.id));
-                    } else if group.name == "Default" {
-                        // Default group found, store its id as fallback
-                        default_group_id = group.id;
-                    }
-                }
-
-                Task::done(GroupNavigatorMessage::SetCurrentGroup(default_group_id))
-            },
-            GroupNavigatorMessage::ReloadGroup => {
-                // Intercepted by the dashbaord
-                // Group component must be ackknowledge of the reload content of the group
-                Task::none()
-            },
-            GroupNavigatorMessage::ToggleOpen =>{
-                self.open = !self.open;
-                Task::none()
-            },
-            GroupNavigatorMessage::ToggleGroupHovered(id) => {
-                let group = match self.find_group(id) {
-                    Some(group) => group,
-                    None => return Task::none(),
-                };
-                group.hovered = !group.hovered;
-                Task::none()
-            },
-            GroupNavigatorMessage::OpenNewGroupBox => {
-                *item_editor = Some(
-                    ItemEditor {
-                        name: Some(String::new()),
-                        description: Some(Content::new()),
-                        dialog: Dialog::NewGroup,
-                        ..Default::default()
-                    }
-                );
-                Task::none()
-            },
-            GroupNavigatorMessage::OpenDeleteGroupBox(group) => {
-                *item_editor = Some(
-                    ItemEditor {
-                        id: Some(group.id),
-                        name: Some(group.name),
-                        dialog: Dialog::DeleteGroup,
-                        ..Default::default()
-                    }
-                );
-                Task::none()
-            },
-        }
-    }
-
-    fn group_row_to_group_info(groups: Vec<GroupRow>) -> Vec<GroupInfo> {
-        groups
-            .into_iter()
-            .map(|group| GroupInfo {
-                id: group.id,
-                name: group.name,
-                description: group.description,
-                item_count: group.item_count as usize,
-
-                hovered: false,
-            })
-            .collect()
-    }
-
-    fn find_group(&mut self, id: i32) -> Option<&mut GroupInfo> {
-        self.group_list.iter_mut().find(|group| group.id == id)
     }
 }

@@ -1,107 +1,15 @@
-use std::sync::Arc;
-
 use iced::font::{Family, Style};
 use iced::widget::text::{Span, Wrapping};
-use iced::widget::text_editor::Content;
 use iced::widget::{Column, Row, button, center, center_x, column, container, mouse_area, rich_text, row, scrollable, space, text};
-use iced::{Alignment, Background, Border, Color, Element, Font, Length, Task, Theme, color};
-use iced::clipboard;
-use sqlx::SqlitePool;
-use sqlx::types::chrono::NaiveDateTime;
+use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme, color};
 
-use crate::app::dashboard::Dialog;
-use crate::components::status_bar::{StatusMessage, StatusType};
+use crate::app::dashboard::{Dashboard, DashboardMessage, ItemFilter, ItemInfo, ItemType};
 use crate::icon;
-use crate::services::item::{ItemRow, load_items_for_group, update_item_favourite, update_item_used};
 use crate::utils::font_size::{sv, sv_16, sv_20};
-use super::{GroupInfo, ItemEditor};
 
 
-#[derive(Debug, Clone)]
-pub struct Group {
-    description_open: bool,
-    filter: Filter,
-    item_list: Vec<ItemInfo>,
-
-    pool: Arc<SqlitePool>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Filter {
-    command: bool,
-    script: bool,
-    alphabetical: bool,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ItemInfo {
-    pub id: i32,
-    pub item_type: ItemType,
-    pub name: Option<String>,
-    pub content: String,
-    pub description: String,
-    pub is_favourite: bool,
-    pub last_used_at: Option<NaiveDateTime>,
-    pub tags: Vec<String>,
-
-    pub hovered: bool,
-    pub highlighted: bool,
-    pub copied: bool,
-    pub description_open: bool,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ItemType {
-    Command,
-    Script,
-}
-
-
-#[derive(Debug, Clone)]
-pub enum GroupMessage {
-    LoadGroup,
-    SetItemList(Result<Vec<(ItemRow, Vec<String>)>, String>),
-    ToggleDescriptionOpen,
-    SetFilter(Filter),
-    MakeItemFavourite(i32), // ISSUE: MakeItem, ToggleItem redundant
-    ToggleItemFavourite(i32),
-    UpdateItemUsed(i32),
-    HighlightItem(i32),
-    ToggleItemHovered(i32),
-    CopyItemContent(i32),
-    ToggleItemContentCopied(i32),
-    RunCommand(String),
-
-    OpenEditGroupBox(GroupInfo),
-    OpenNewItemBox(ItemType),
-    OpenEditItemBox(ItemInfo),
-    OpenDeleteItemBox(ItemInfo),
-
-    SetStatusMessage(StatusMessage),
-
-    None,
-}
-
-impl Group {
-    pub fn new(pool: Arc<SqlitePool>) -> (Self, Task<GroupMessage>) {
-        (
-            Self {
-                description_open: false,
-                filter: Filter {
-                    command: true,
-                    script: true,
-                    alphabetical: true,
-                },
-                item_list: Vec::new(),
-
-                pool: pool,
-            },
-
-            Task::done(GroupMessage::LoadGroup),
-        )
-    }
-
-    pub fn view(&self, current_group: &GroupInfo) -> Element<'_, GroupMessage> {
+impl Dashboard {
+    pub fn group_view(&self) -> Element<'_, DashboardMessage> {
         container(
             column![
                 // Fancy group name
@@ -110,7 +18,7 @@ impl Group {
                     Span::<&str>::new("user@shelf").color(color!(0x50FA7B)),
                     Span::new(":"),
                     Span::new("~/").color(color!(0x276CF5)),
-                    Span::new(current_group.name.clone()).color(color!(0x276CF5)),
+                    Span::new(self.group_selected.name.clone()).color(color!(0x276CF5)),
                     Span::new("$ "),
                 ]
                 .size(sv_16())
@@ -124,14 +32,14 @@ impl Group {
                         // Command filter
                         button(icon::terminal().size(sv_16()))
                         .padding([0, 3])
-                        .on_press(GroupMessage::SetFilter(Filter {
-                            command: !self.filter.command,
-                            ..self.filter
+                        .on_press(DashboardMessage::SetFilter(ItemFilter {
+                            command: !self.item_filter.command,
+                            ..self.item_filter
                         }))
                         .style(|theme, _| button::Style {
                             background: None,
                             text_color: theme.palette().primary,
-                            border: match self.filter.command {
+                            border: match self.item_filter.command {
                                 true => Border {
                                     width: 2.0,
                                     color: theme.palette().primary.scale_alpha(0.5),
@@ -145,14 +53,14 @@ impl Group {
                         // Script filter
                         button(icon::code_xml().size(sv_16()))
                         .padding([0, 3])
-                        .on_press(GroupMessage::SetFilter(Filter {
-                            script: !self.filter.script,
-                            ..self.filter
+                        .on_press(DashboardMessage::SetFilter(ItemFilter {
+                            script: !self.item_filter.script,
+                            ..self.item_filter
                         }))
                         .style(|theme, _| button::Style {
                             background: None,
                             text_color: theme.palette().primary,
-                            border: match self.filter.script {
+                            border: match self.item_filter.script {
                                 true => Border {
                                     width: 2.0,
                                     color: theme.palette().primary.scale_alpha(0.5),
@@ -169,14 +77,14 @@ impl Group {
                                 .size(sv_16())
                         )
                         .padding([0, 3])
-                        .on_press(GroupMessage::SetFilter(Filter {
-                            alphabetical: !self.filter.alphabetical,
-                            ..self.filter
+                        .on_press(DashboardMessage::SetFilter(ItemFilter {
+                            alphabetical: !self.item_filter.alphabetical,
+                            ..self.item_filter
                         }))
                         .style(|theme, _| button::Style {
                             background: None,
                             text_color: theme.palette().primary,
-                            border: match self.filter.alphabetical {
+                            border: match self.item_filter.alphabetical {
                                 true => Border {
                                     width: 2.0,
                                     color: theme.palette().primary.scale_alpha(0.5),
@@ -193,14 +101,14 @@ impl Group {
                         .width(Length::Fill),
 
                     // Edit group, Add command/script
-                    if current_group.name.as_str() != "Favourites"
-                    && current_group.name.as_str() != "Recent" {
+                    if self.group_selected.name.as_str() != "Favourites"
+                    && self.group_selected.name.as_str() != "Recent" {
                         row![
                             // Edit group
-                            match current_group.name.as_str() != "Default" {
+                            match self.group_selected.name.as_str() != "Default" {
                                 true => container(
                                     button(center(icon::pen().size(sv(15.0))))
-                                        .on_press(GroupMessage::OpenEditGroupBox(current_group.clone()))
+                                        .on_press(DashboardMessage::OpenEditGroupBox(self.group_selected.clone()))
                                         .height(Length::Shrink)
                                         .width(Length::Shrink)
                                         .padding(5)
@@ -235,7 +143,7 @@ impl Group {
                                 .align_y(Alignment::Center)
                                 .spacing(10)
                             )
-                            .on_press(GroupMessage::OpenNewItemBox(ItemType::Command))
+                            .on_press(DashboardMessage::OpenNewItemBox(ItemType::Command))
                             .style(|theme, _| button::Style {
                                 border: Border {
                                     color: theme.palette().success,
@@ -269,7 +177,7 @@ impl Group {
                                 .align_y(Alignment::Center)
                                 .spacing(10)
                             )
-                            .on_press(GroupMessage::OpenNewItemBox(ItemType::Script))
+                            .on_press(DashboardMessage::OpenNewItemBox(ItemType::Script))
                             .style(|theme, _| button::Style {
                                 border: Border {
                                     color: theme.palette().success,
@@ -290,7 +198,7 @@ impl Group {
                     container(
                         row![
                             // Text
-                            container(match current_group.description.as_str() {
+                            container(match self.group_selected.description.as_ref() {
                                 "" => text("No description")
                                     .size(sv_16())
                                     .font(Font {
@@ -310,13 +218,13 @@ impl Group {
                             .width(Length::Fill),
 
                             // Collapse button
-                            match current_group.description.as_str() {
+                            match self.group_selected.description.as_str() {
                                 "" => container(space()),
-                                _ => container(button(match self.description_open {
+                                _ => container(button(match self.group_description_open {
                                         true => icon::chevron_up().size(sv_20()),
                                         false => icon::chevron_down().size(sv_20()),
                                     })
-                                    .on_press(GroupMessage::ToggleDescriptionOpen)
+                                    .on_press(DashboardMessage::SetGroupDescriptionOpen)
                                     .padding(5)
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().primary,
@@ -325,7 +233,7 @@ impl Group {
                             }
                         ]
                     )
-                    .height(match self.description_open { // ISSUE: Collapsed height covers half the height of second line
+                    .height(match self.group_description_open { // ISSUE: Collapsed height covers half the height of second line
                         true => Length::Shrink,
                         false => Length::Fixed(sv(20.0 * 2.5)),
                     })
@@ -366,7 +274,7 @@ impl Group {
         .into()
     }
 
-    fn item_card_view<'a>(item: &'a ItemInfo) -> Element<'a, GroupMessage> {
+    fn item_card_view<'a>(item: &'a ItemInfo) -> Element<'a, DashboardMessage> {
         let (id, name, content, description, is_favourite, tags, highlighted, hovered, copied, _description_collapsed) = (
             item.id,
             match &item.name {
@@ -391,7 +299,7 @@ impl Group {
             },
         };
 
-        fn tag_view(tag: &str) -> Element<'_, GroupMessage> {
+        fn tag_view(tag: &str) -> Element<'_, DashboardMessage> {
             container(
                 text(tag)
                     .size(sv(13.0))
@@ -479,7 +387,7 @@ impl Group {
                         ]
                         .spacing(8)
                     )
-                    .on_press(GroupMessage::CopyItemContent(
+                    .on_press(DashboardMessage::CopyItemContent(
                         id,
 
                     ))
@@ -491,7 +399,7 @@ impl Group {
                     column![
                         // Run
                         button(icon::play().size(sv(15.0)))
-                            .on_press(GroupMessage::RunCommand(content.to_string()))
+                            .on_press(DashboardMessage::RunCommand(content.to_string()))
                             .style(|theme, _| button::Style {
                                 text_color: theme.palette().success,
                                 ..Default::default()
@@ -502,7 +410,7 @@ impl Group {
                             // If the item is a favourite, show the star icon
                             true => container(
                                 button(icon::star().size(sv_16()))
-                                    .on_press(GroupMessage::MakeItemFavourite(id))
+                                    .on_press(DashboardMessage::SetItemFavourite(id))
                                     .style(|theme, _| button::Style {
                                         text_color: match theme.extended_palette().is_dark {
                                             true => color!(0xF1FA8C),
@@ -515,7 +423,7 @@ impl Group {
                             false => match hovered {
                                 true => container(
                                     button(icon::star().size(sv_16()))
-                                        .on_press(GroupMessage::MakeItemFavourite(id))
+                                        .on_press(DashboardMessage::SetItemFavourite(id))
                                         .style(|theme, _| button::Style {
                                             text_color: theme.palette().primary,
                                             ..Default::default()
@@ -530,14 +438,14 @@ impl Group {
                         match hovered {
                             true => column![
                                 button(icon::pen().size(sv(15.0)))
-                                    .on_press(GroupMessage::OpenEditItemBox(item.clone()))
+                                    .on_press(DashboardMessage::OpenEditItemBox(item.clone()))
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().primary,
                                         ..Default::default()
                                     }),
 
                                 button(icon::trash().size(sv(15.0)))
-                                    .on_press(GroupMessage::OpenDeleteItemBox(item.clone()))
+                                    .on_press(DashboardMessage::OpenDeleteItemBox(item.clone()))
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().danger,
                                         ..Default::default()
@@ -568,240 +476,8 @@ impl Group {
                 ..Default::default()
             })
         )
-        .on_enter(GroupMessage::ToggleItemHovered(id))
-        .on_exit(GroupMessage::ToggleItemHovered(id))
+        .on_enter(DashboardMessage::SetItemHovered(id))
+        .on_exit(DashboardMessage::SetItemHovered(id))
         .into()
-    }
-
-    pub fn update(&mut self, message: GroupMessage, current_group: &mut GroupInfo, item_editor: &mut Option<ItemEditor>, status_message: &mut StatusMessage) -> Task<GroupMessage> {
-        match message {
-            GroupMessage::LoadGroup => {
-                let pool = self.pool.clone();
-                Task::perform(
-                    load_items_for_group(pool, current_group.id, self.filter.command, self.filter.script),
-                    GroupMessage::SetItemList
-                )
-            },
-            GroupMessage::SetItemList(items) => {
-                match items {
-                    Ok(items) => self.item_list = Self::item_row_to_item_info(items),
-                    Err(e) => {
-                        eprintln!("Failed to load items: {}", e);
-                        self.item_list = Vec::new();
-                    },
-                }
-                if self.filter.alphabetical {
-                    self.item_list.sort_by(|a, b| a.name.cmp(&b.name));
-                }
-                Task::none()
-            },
-            GroupMessage::ToggleDescriptionOpen => {
-                self.description_open = !self.description_open;
-                Task::none()
-            },
-            GroupMessage::SetFilter(filter) => {
-                // ISSUE: No items present when both command and script filters are enabled
-                self.filter = filter;
-                Task::done(GroupMessage::LoadGroup)
-            },
-            GroupMessage::MakeItemFavourite(id) => {
-                let pool = self.pool.clone();
-                let item = match self.find_item(id) {
-                    Some(item) => item,
-                    None => return Task::none(),
-                };
-                Task::perform(
-                    update_item_favourite(pool, id, !item.is_favourite),
-                    move |result| match result {
-                        Ok(_) => GroupMessage::ToggleItemFavourite(id),
-                        Err(_) => GroupMessage::None,
-                    },
-                )
-            },
-            GroupMessage::ToggleItemFavourite(id) => {
-                let item = match self.find_item(id) {
-                    Some(item) => item,
-                    None => return Task::none(),
-                };
-                item.is_favourite = !item.is_favourite;
-                Task::none()
-            },
-            GroupMessage::UpdateItemUsed(id) => {
-                let pool = self.pool.clone();
-                Task::perform(
-                    update_item_used(pool, id),
-                    |_| GroupMessage::None, // TODO: Recent group count must be incremented
-                )
-            },
-            GroupMessage::HighlightItem(id) => {
-                let item = match self.find_item(id) {
-                    Some(item) => item,
-                    None => {
-                        println!("No item");
-                        return Task::none()
-                    },
-                };
-                item.highlighted = true;
-                Task::none()
-            },
-            GroupMessage::ToggleItemHovered(id) => {
-                let item = match self.find_item(id) {
-                    Some(item) => item,
-                    None => return Task::none(),
-                };
-                item.hovered = !item.hovered;
-                item.highlighted = false;
-                item.copied = false;
-                Task::none()
-            },
-            GroupMessage::CopyItemContent(id) => {
-                let item = match self.find_item(id) {
-                    Some(item) => item,
-                    None => return Task::none(),
-                };
-                Task::batch([
-                    clipboard::write(item.content.clone()),
-                    Task::done(GroupMessage::UpdateItemUsed(id))
-                        .chain(Task::done(GroupMessage::ToggleItemContentCopied(id))),
-                ])
-            },
-            GroupMessage::ToggleItemContentCopied(id) => {
-                let item = match self.find_item(id) {
-                    Some(item) => item,
-                    None => return Task::none(),
-                };
-                item.copied = true;
-                Task::none()
-            },
-            GroupMessage::RunCommand(_command) => {
-                Task::done(GroupMessage::SetStatusMessage(
-                    StatusMessage::new(Some(format!("Cannot run command (Feature not implemented)")), StatusType::Warn)
-                ))
-            }
-            GroupMessage::OpenEditGroupBox(group) => {
-                *item_editor = Some(
-                    ItemEditor {
-                        id: Some(group.id),
-                        name: Some(group.name),
-                        description: Some(Content::with_text(&group.description)),
-                        dialog: Dialog::EditGroup,
-                        ..Default::default()
-                    }
-                );
-                Task::none()
-            },
-            GroupMessage::OpenNewItemBox(item_type) => {
-                match item_type {
-                    ItemType::Command => *item_editor = Some(
-                        ItemEditor {
-                            content: Some(Content::new()),
-                            description: Some(Content::new()),
-                            tag: Some(String::new()),
-                            tags: Some(Vec::new()),
-                            dialog: Dialog::NewCommand,
-                            ..Default::default()
-                        },
-                    ),
-                    ItemType::Script => *item_editor = Some(
-                        ItemEditor {
-                            name: Some(String::new()),
-                            content: Some(Content::new()),
-                            description: Some(Content::new()),
-                            tag: Some(String::new()),
-                            tags: Some(Vec::new()),
-                            dialog: Dialog::NewScript,
-                            ..Default::default()
-                        },
-                    ),
-                }
-
-                Task::none()
-            },
-            GroupMessage::OpenEditItemBox(item) => {
-                match item.item_type {
-                    ItemType::Command => *item_editor = Some(
-                        ItemEditor {
-                            id: Some(item.id),
-                            content: Some(Content::with_text(&item.content)),
-                            description: Some(Content::with_text(&item.description)),
-                            tag: Some(String::new()),
-                            tags: Some(item.tags),
-                            dialog: Dialog::EditCommand,
-                            ..Default::default()
-                        }
-                    ),
-                    ItemType::Script => *item_editor = Some(
-                        ItemEditor {
-                            id: Some(item.id),
-                            name: Some(item.name.unwrap_or_default()),
-                            content: Some(Content::with_text(&item.content)),
-                            description: Some(Content::with_text(&item.description)),
-                            tag: Some(String::new()),
-                            tags: Some(item.tags),
-                            dialog: Dialog::EditScript,
-                            ..Default::default()
-                        }
-                    ),
-                };
-                Task::none()
-            },
-            GroupMessage::OpenDeleteItemBox(item) => {
-                match item.item_type {
-                    ItemType::Command => *item_editor = Some(
-                        ItemEditor {
-                            id: Some(item.id),
-                            name: Some(item.content), // content is used as name for the delete dialog
-                            dialog: Dialog::DeleteCommand,
-                            ..Default::default()
-                        }
-                    ),
-                    ItemType::Script => *item_editor = Some(
-                        ItemEditor {
-                            id: Some(item.id),
-                            name: Some(item.name.unwrap_or_default()),
-                            dialog: Dialog::DeleteScript,
-                            ..Default::default()
-                        }
-                    ),
-                };
-                Task::none()
-            },
-            GroupMessage::SetStatusMessage(message) => {
-                *status_message = message;
-                Task::none()
-            },
-            GroupMessage::None => Task::none(),
-        }
-    }
-
-    fn item_row_to_item_info(items: Vec<(ItemRow, Vec<String>)>) -> Vec<ItemInfo> {
-        items.into_iter().map(|(item, tags)| ItemInfo {
-            id: item.id,
-            item_type: match item.item_type.as_str() {
-                "command" => ItemType::Command,
-                _ => ItemType::Script,
-            },
-            name: item.name,
-            content: item.content,
-            description: item.description,
-            is_favourite: match item.is_favourite {
-                0 => false,
-                _ => true,
-            },
-            last_used_at: item.last_used_at.as_ref().and_then(|s| {
-                NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()
-            }),
-            tags: tags,
-
-            hovered: false,
-            highlighted: false,
-            copied: false,
-            description_open: false,
-        })
-        .collect()
-    }
-
-    fn find_item(&mut self, id: i32) -> Option<&mut ItemInfo> {
-        self.item_list.iter_mut().find(|i| i.id == id)
     }
 }

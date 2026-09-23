@@ -1,0 +1,131 @@
+use iced::theme::Palette;
+use iced::{Element, Task, Theme, color};
+
+use super::{App, AppMessage};
+use super::home::Home;
+use super::dashboard::Dashboard;
+use super::settings::Settings;
+
+use crate::data::settings::{AppScreen, AppTheme};
+use crate::data::db::init_db;
+use crate::components::loading_screen::loading_screen_view;
+use crate::utils::logger::{log_debug, log_error};
+
+
+const APP_TITLE: &str = "Shelf";
+
+impl App<'static> {
+    pub fn new() -> (Self, Task<AppMessage>) {
+        (
+            Self {
+                title: APP_TITLE,
+                theme: AppTheme::Dark,
+                screen: AppScreen::Home,
+
+                home: None,
+                dashboard: None,
+                settings: None,
+            },
+
+            Task::perform(
+                init_db(),
+                |pool| AppMessage::PoolLoaded(pool),
+            ),
+        )
+    }
+
+    pub fn view(&self) -> Element<'_, AppMessage> {
+        match self.screen {
+            AppScreen::Home => match &self.home {
+                Some(home) => home.view().map(|m| AppMessage::HomeMessage(m)),
+                None => loading_screen_view(),
+            },
+            AppScreen::Dashboard => match &self.dashboard {
+                Some(dashboard) => dashboard.view(self.title, &self.theme).map(|m| AppMessage::DashboardMessage(m)),
+                None => loading_screen_view(),
+            },
+            AppScreen::Settings => match &self.settings {
+                Some(settings) => settings.view().map(|m| AppMessage::SettingsMessage(m)),
+                None => loading_screen_view(),
+            },
+        }
+    }
+
+    pub fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
+        match message {
+            AppMessage::PoolLoaded(pool) => match pool {
+                Ok(pool) => {
+                    log_debug("Database pool loaded successfully");
+                    Task::done(AppMessage::LoadApp(pool))
+                },
+                Err(e) => {
+                    log_error(&e);
+                    Task::none()
+                },
+            },
+            AppMessage::LoadApp(pool) => {
+                let (home, home_task) = Home::new();
+                self.home = Some(home);
+
+                let (dashboard, dashboard_task) = Dashboard::new(pool);
+                self.dashboard = Some(dashboard);
+
+                let (settings, settings_task) = Settings::new();
+                self.settings = Some(settings);
+
+                Task::batch([
+                    home_task.map(|m| AppMessage::HomeMessage(m)),
+                    dashboard_task.map(|m| AppMessage::DashboardMessage(m)),
+                    settings_task.map(|m| AppMessage::SettingsMessage(m)),
+                ])
+            },
+            AppMessage::HomeMessage(home_m) => match &mut self.home {
+                Some(home) => home.update(home_m, &mut self.screen).map(|m| AppMessage::HomeMessage(m)),
+                None => Task::none(),
+            },
+            AppMessage::DashboardMessage(dashboard_m) => match &mut self.dashboard {
+                Some(dashboard) => dashboard.update(dashboard_m, &mut self.screen, &mut self.theme).map(|m| AppMessage::DashboardMessage(m)),
+                None => Task::none(),
+            },
+            AppMessage::SettingsMessage(settings_m) => match &mut self.settings {
+                Some(settings) => settings.update(settings_m, &mut self.screen, &mut self.theme).map(|m| AppMessage::SettingsMessage(m)),
+                None => Task::none(),
+            },
+        }
+    }
+
+    pub fn title(&self) -> String {
+        match self.screen {
+            AppScreen::Home => self.title.to_string(),
+            AppScreen::Dashboard => format!("{} - Dashboard", self.title),
+            AppScreen::Settings => format!("{} - Settings", self.title)
+        }
+    }
+
+    pub fn theme(&self) -> Theme {
+        Theme::custom(
+            match self.theme {
+                AppTheme::Light => "Shelf Light",
+                AppTheme::Dark => "Shelf Dark",
+            },
+            match self.theme {
+                AppTheme::Light => Palette {
+                    background: color!(0xEDF2F8),
+                    text: color!(0x27374D),
+                    primary: color!(0x526D82),
+                    success: color!(0x07C400),
+                    warning: color!(0xE77B00),
+                    danger: color!(0xF54927),
+                },
+                AppTheme::Dark => Palette {
+                    background: color!(0x282A36),
+                    text: color!(0xF8F8F2),
+                    primary: color!(0x6272A4),
+                    success: color!(0x50FA7B),
+                    warning: color!(0xFFB86C),
+                    danger: color!(0xFF5555),
+                },
+            }
+        )
+    }
+}
