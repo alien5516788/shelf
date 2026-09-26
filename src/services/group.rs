@@ -160,5 +160,9 @@ fn validate_fields(
         return Err(format!("Group name '{}' is reserved", name));
     }
 
+    if description.len() > 1000 {
+        return Err("Group description is too long".to_string());
+    }
+
     Ok((name, description))
 }

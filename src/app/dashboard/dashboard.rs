@@ -165,6 +165,7 @@ impl Dashboard {
                 Task::none()
             },
             DashboardMessage::ClearSearchResult => {
+                self.search_query.clear();
                 self.search_result = None;
                 Task::none()
             },
@@ -173,13 +174,12 @@ impl Dashboard {
                     Some(group) => group,
                     None => return Task::none()
                 };
-                Task::done(DashboardMessage::SetGroupSelected(group.clone())) // ISSUE: no clone
-                    // ISSUE: Highlight must run after loading the group
-                    .chain(Task::done(DashboardMessage::HighlightItem(id)))
-                    .chain(Task::done(DashboardMessage::ClearSearchResult))
+                Task::done(DashboardMessage::ClearSearchResult)
+                    .chain(Task::done(DashboardMessage::SetGroupSelected(group.clone())))
+                    .chain(Task::done(DashboardMessage::HighlightItem(id))) // ISSUE: Highlight must run after loading the group
                     .chain(Task::done(
                         DashboardMessage::SetStatusMessage(
-                            StatusMessage::new(Some("Scroll to search result is not implemented".to_string()), StatusType::Warn)
+                            StatusMessage::new(Some("Failed to scroll (Feature not implemented)".to_string()), StatusType::Warn)
                         )
                     ))
             },
@@ -239,7 +239,7 @@ impl Dashboard {
                 let item = match self.find_item(id) {
                     Some(item) => item,
                     None => {
-                        println!("No item");
+                        log_error("Item to be highlighted not found");
                         return Task::none()
                     },
                 };

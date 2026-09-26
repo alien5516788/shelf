@@ -6,6 +6,7 @@ use iced::{Alignment, Background, Border, Color, Element, Font, Length, Theme, c
 use crate::app::dashboard::{Dashboard, DashboardMessage, ItemFilter, ItemInfo, ItemType};
 use crate::icon;
 use crate::utils::font_size::{sv, sv_16, sv_20};
+use crate::utils::formatting::clamp_name;
 
 
 impl Dashboard {
@@ -188,7 +189,9 @@ impl Dashboard {
                             }),
                         ]
                     } else {
-                        row![]
+                        row![
+                            space().height(36) // ISSUE: Guessed height for empty buttons
+                        ]
                     }
                 ],
 
@@ -209,11 +212,14 @@ impl Dashboard {
                                     .style(|theme: &Theme| text::Style {
                                         color: Some(theme.palette().primary.scale_alpha(0.5)),
                                     }),
-                                description => text(description.to_string())
-                                    .size(sv_16())
-                                    .style(|theme: &Theme| text::Style {
-                                        color: Some(theme.palette().primary),
-                                    }),
+                                description => match self.group_description_open {
+                                    true => text(description),
+                                    false => text(clamp_name(description, 120)),
+                                }
+                                .size(sv_16())
+                                .style(|theme: &Theme| text::Style {
+                                    color: Some(theme.palette().primary),
+                                }),
                             })
                             .width(Length::Fill),
 
@@ -225,7 +231,7 @@ impl Dashboard {
                                         false => icon::chevron_down().size(sv_20()),
                                     })
                                     .on_press(DashboardMessage::SetGroupDescriptionOpen)
-                                    .padding(5)
+                                    .padding([0, 5])
                                     .style(|theme, _| button::Style {
                                         text_color: theme.palette().primary,
                                         ..Default::default()
@@ -233,10 +239,7 @@ impl Dashboard {
                             }
                         ]
                     )
-                    .height(match self.group_description_open { // ISSUE: Collapsed height covers half the height of second line
-                        true => Length::Shrink,
-                        false => Length::Fixed(sv(20.0 * 2.5)),
-                    })
+                    .height(Length::Shrink)
                     .padding(10)
                     .clip(true)
                     .style(|theme| container::Style {
